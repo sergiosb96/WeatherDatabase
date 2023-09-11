@@ -23,7 +23,7 @@ Database Managment Applications (DBMS) such as [HeidiSQL](https://www.heidisql.c
 ## Installation
 ### You must have Docker and [Docker-Compose](https://docs.docker.com/compose/install/) installed
 
-1. run ```git clone https://github.com/sergiosb96/CitiesManager```
+1. run ```git clone https://github.com/sergiosb96/...```
 2. run ```cd CitiesManager``` (to change directory)
 3. edit the .env.example and add you API keys (```sudo nano .env.example```)
 4. copy and rename it to .env (```cp ./.env.example ./.env```)
