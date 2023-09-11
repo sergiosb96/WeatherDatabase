@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>NTUA Thesis - Cities</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous">
+  </head>
+  <body>
+  
+    <nav class="navbar navbar-expand-lg bg-body-tertiary fixed-top" data-bs-theme="dark">
+      <div class="container-fluid">  
+        <a class="navbar-brand" href="#">NTUA Thesis</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarScroll" aria-controls="navbarScroll" aria-expanded="false" aria-label="Toggle navigation">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarScroll">
+          <ul class="navbar-nav me-auto my-2 my-lg-0 navbar-nav-scroll" style="--bs-scroll-height: 100px;">
+            <li class="nav-item">
+              <a class="nav-link" href="/">Home</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link active" href="/cities" aria-current="page">Cities</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/api">API</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/api/docs">API Docs</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="https://github.com/sergiosb96/WeatherDatabase" target="_blank" rel="noopener" aria-label="GitHub"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" class="navbar-nav-svg" viewBox="0 0 512 499.36" role="img"><path fill="currentColor" fill-rule="evenodd" d="M256 0C114.64 0 0 114.61 0 256c0 113.09 73.34 209 175.08 242.9 12.8 2.35 17.47-5.56 17.47-12.34 0-6.08-.22-22.18-.35-43.54-71.2 15.49-86.2-34.34-86.2-34.34-11.64-29.57-28.42-37.45-28.42-37.45-23.27-15.84 1.73-15.55 1.73-15.55 25.69 1.81 39.21 26.38 39.21 26.38 22.84 39.12 59.92 27.82 74.5 21.27 2.33-16.54 8.94-27.82 16.25-34.22-56.84-6.43-116.6-28.43-116.6-126.49 0-27.95 10-50.8 26.35-68.69-2.63-6.48-11.42-32.5 2.51-67.75 0 0 21.49-6.88 70.4 26.24a242.65 242.65 0 0 1 128.18 0c48.87-33.13 70.33-26.24 70.33-26.24 14 35.25 5.18 61.27 2.55 67.75 16.41 17.9 26.31 40.75 26.31 68.69 0 98.35-59.85 120-116.88 126.32 9.19 7.9 17.38 23.53 17.38 47.41 0 34.22-.31 61.83-.31 70.23 0 6.85 4.61 14.81 17.6 12.31C438.72 464.97 512 369.08 512 256.02 512 114.62 397.37 0 256 0z"></path></svg></a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </nav>
+
+    <div style="margin-bottom:15px" class="container-sm">
+      <br><br>
+        {% with messages = get_flashed_messages() %}
+          {% if messages %}
+          <div class="alert alert-primary" role="alert">
+            <figure class="text-center">
+              {% for message in messages %}
+                <li>{{ message }}</li>
+              {% endfor %}
+            </figure>
+          </div>
+          {% endif %}
+        {% endwith %}
+    </div>
+
+    <br><br>
+    <div style="margin-top:15px" class="container-md">
+      <h3 class="text-center">Add Cities or Coordinates</h3>
+      <div class="row">
+        <div style="margin-right:15px; padding:15px" class="col border border-secondary rounded">
+          <form method="post" class="row g-2" action="/cities/add">
+            <h5 class="text-center">City Name</h5>
+            <div class="col-12">
+              <label for="city" class="form-label">Add City</label>
+              <input type="text" class="form-control" id="city" placeholder="Enter a valid city name" name="city" required>
+            </div>
+              <h5>Collection Methods and Model</h5>
+              <div class="col-md-6">
+                <label for="daily" class="form-label"><b>Best Model</b> Daily</label>
+                <select class="form-select" id="daily" name="daily">
+                  <option value="1">Yes</option>
+                  <option value="0">No</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label for="hourly" class="form-label"><b>Best Model</b> Hourly</label>
+                <select class="form-select" id="hourly" name="hourly">
+                  <option value="1">Yes</option>
+                  <option value="0">No</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label for="icon" class="form-label"><b>ICON</b> Hourly</label>
+                <p>(best for central Europe)</p>
+                <select class="form-select" id="icon" name="icon">
+                  <option value="1">Yes</option>
+                  <option value="0">No</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label for="icon_15" class="form-label"><b>ICON</b> 15-Minutely</label>
+                <p>(best for central Europe)</p>
+                <select class="form-select" id="icon_15" name="icon_15">
+                  <option value="1">Yes</option>
+                  <option value="0">No</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label for="gfs" class="form-label"><b>NOAA GFS</b> Hourly</label>
+                <p>(US region only)</p>
+                <select class="form-select" id="gfs" name="gfs">
+                  <option value="1">Yes</option>
+                  <option value="0">No</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label for="meteofrance" class="form-label"><b>MeteoFrance</b> Hourly</label>
+                <p>(tailored for Central Europe)</p>
+                <select class="form-select" id="meteofrance" name="meteofrance">
+                  <option value="1">Yes</option>
+                  <option value="0">No</option>
+                </select>
+              </div>
+            <button type="submit" class="btn btn-primary">Add City</button>
+          </form>
+        </div>
+      <div style="padding:15px" class="col border border-secondary rounded">
+        <form class="row g-2" method="post" action="/cities/add-coords">
+          <h5 class="text-center">Coordinates</h5>
+          <div class="col-md-6">
+            <label for="inputLat" class="form-label">Latitude</label>
+            <input type="text" class="form-control" id="lat" placeholder="Enter Latitude" name="lat" required>
+          </div>
+          <div class="col-md-6">
+            <label for="inputLon" class="form-label">Longtitude</label>
+            <input type="text" class="form-control" id="lon" placeholder="Enter Longtitude" name="lon" required>
+          </div>
+          <h5>Collection Methods and Model</h5>
+          <div class="col-md-6">
+            <label for="daily" class="form-label"><b>Best Model</b> Daily</label>
+            <select class="form-select" id="daily" name="daily">
+              <option value="1">Yes</option>
+              <option value="0">No</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label for="hourly" class="form-label"><b>Best Model</b> Hourly</label>
+            <select class="form-select" id="hourly" name="hourly">
+              <option value="1">Yes</option>
+              <option value="0">No</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label for="icon" class="form-label"><b>ICON</b> Hourly</label>
+            <p>(best for central Europe)</p>
+            <select class="form-select" id="icon" name="icon">
+              <option value="1">Yes</option>
+              <option value="0">No</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label for="icon_15" class="form-label"><b>ICON</b> 15-Minutely</label>
+            <p>(best for central Europe)</p>
+            <select class="form-select" id="icon_15" name="icon_15">
+              <option value="1">Yes</option>
+              <option value="0">No</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label for="gfs" class="form-label"><b>NOAA GFS</b> Hourly</label>
+            <p>(US region only)</p>
+            <select class="form-select" id="gfs" name="gfs">
+              <option value="1">Yes</option>
+              <option value="0">No</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label for="meteofrance" class="form-label"><b>MeteoFrance</b> Hourly</label>
+            <p>(tailored for Central Europe)</p>
+            <select class="form-select" id="meteofrance" name="meteofrance">
+              <option value="1">Yes</option>
+              <option value="0">No</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary">Add Coordinates</button>
+        </form>
+      </div>
+    </div>
+    <div style="margin-top:15px; padding:15px" class="container-md border border-secondary rounded">
+      <div class="row">
+        <h3 class="text-center">Search City or Country</h3>
+        <div class="col">
+          <div class="search-bar">
+            <input type="text" class="form-control" id="search_input1" placeholder="Search City" onkeyup="searchTable1()">
+            <!-- <button type="button" class="btn btn-outline-primary" id="search_button">Search</button> -->
+          </div>
+        </div>
+          <div class="col">
+           <div class="search-bar">
+             <input type="text" class="form-control" id="search_input2" placeholder="Search Country" onkeyup="searchTable2()">
+             <!-- <button type="button" class="btn btn-outline-primary" id="search_button">Search</button> -->
+           </div>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:25px" class="table-responsive rounded">
+      <h3 class="text-center">List of Cities</h3>
+      <table style="margin-top:15px" class="table table-hover table-bordered border-primary" id="city_table">
+        <!-- <thead>
+          <tr>
+            <th>Details</th>
+            <th> </th>
+            <th> </th>
+            <th> </th>
+            <th> </th>
+            <th>| Collection</th>
+            <th> </th>
+            <th>| Sources</th>
+            <th> </th>
+            <th>| Actions</th>
+            <th> </th>
+          </tr>
+        </thead> -->
+        <thead>
+          <tr>
+            <th>Closest City</th>
+            <th>Latitude</th>
+            <th>Longtitude</th>
+            <th>Country</th>
+            <th>Country Code</th>
+            <th>Daily</th>
+            <th>Hourly</th>
+            <th>ICON</th>
+            <th>ICON 15</th>
+            <th>NOAA GFS</th>
+            <th>MeteoFrance</th>
+            <th>Google Maps</th>
+            <th>Remove</th>
+          </tr>
+        </thead>
+        <tbody>
+            {% for city in cities %}
+            <tr>
+              <td>{{ city[1] }}</td>
+              <td>{{ city[2] }}</td>
+              <td>{{ city[3] }}</td>
+              <td>{{ city[4] }}</td>
+              <td>{{ city[5] }}</td>
+              <td>{{ city[6] }}</td>
+              <td>{{ city[7] }}</td>
+              <td>{{ city[8] }}</td>
+              <td>{{ city[9] }}</td>
+              <td>{{ city[10] }}</td>
+              <td>{{ city[11] }}</td>
+              
+              <td>
+                <a href="https://www.google.com/maps/search/?api=1&query={{ city[2] }},{{ city[3] }}" class="btn btn-outline-primary" target="_blank">Show in Map</a>
+            </td>
+              <td>
+                <form method="post" action="/cities/delete" onsubmit="return confirm('Are you sure you want to remove this city?');">
+                    <input type="hidden" name="id" value="{{ city[0] }}">
+                    <button type="submit" class="btn btn-outline-danger">Remove</button>
+                  </form>
+            </td>
+          </tr>
+          {% endfor %}
+          
+        </tbody>
+      </table>
+      </div>
+    </div>
+
+    <footer class="container py-5 pt-4 my-md-5 pt-md-5"><div class="row"><div class="col-6 col-md"></div>
+	  <div class="text-center pt-3"><small class="d-block text-muted">© 2022-2023 Copyright</small></div></footer>
+
+    <script>
+        function searchTable1() {
+          // Declare variables
+          var input, filter, table, tr, td, i, txtValue;
+          input = document.getElementById("search_input1");
+          filter = input.value.toUpperCase();
+          table = document.getElementById("city_table");
+          tr = table.getElementsByTagName("tr");
+  
+          // Loop through all table rows, and hide those that don't match the search query
+          for (i = 0; i < tr.length; i++) {
+            td = tr[i].getElementsByTagName("td")[0];
+            if (td) {
+              txtValue = td.textContent || td.innerText;
+              if (txtValue.toUpperCase().indexOf(filter) > -1) {
+                tr[i].style.display = "";
+              } else {
+                tr[i].style.display = "none";
+              }
+            }
+          }
+        }
+
+        function searchTable2() {
+          // Declare variables
+          var input, filter, table, tr, td, i, txtValue;
+          input = document.getElementById("search_input2");
+          filter = input.value.toUpperCase();
+          table = document.getElementById("city_table");
+          tr = table.getElementsByTagName("tr");
+  
+          // Loop through all table rows, and hide those that don't match the search query
+          for (i = 0; i < tr.length; i++) {
+            td = tr[i].getElementsByTagName("td")[3];
+            if (td) {
+              txtValue = td.textContent || td.innerText;
+              if (txtValue.toUpperCase().indexOf(filter) > -1) {
+                tr[i].style.display = "";
+              } else {
+                tr[i].style.display = "none";
+              }
+            }
+          }
+        }
+
+      </script>
+      <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js" integrity="sha384-I7E8VVD/ismYTF4hNIPjVp/Zjvgyol6VFvRkX/vR+Vc4jQkC+hVqc2pM8ODewa9r" crossorigin="anonymous"></script>
+      <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.min.js" integrity="sha384-fbbOQedDUMZZ5KreZpsbe1LCZPVmfTnH7ois6mU1QK+m14rQ1l2bGBq41eYeM/fS" crossorigin="anonymous"></script>
+  </body>
+</html>

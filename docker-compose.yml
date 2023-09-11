@@ -1,0 +1,71 @@
+version: '3'
+services:
+  influxdb:
+    image: influxdb:2.7
+    ports:
+      - 8086:8086
+    volumes:
+      - ./influxdb-data:/var/lib/influxdb2
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: ${INFLUX_USERNAME}
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUX_PASSWORD}
+      DOCKER_INFLUXDB_INIT_ORG: ${INFLUXDB_ORG}
+      DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUXDB_BUCKET}
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUX_TOKEN}
+    restart: always
+
+  app:
+    build: .
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "5000:5000"
+    depends_on:
+      - db
+      - influxdb
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_DB: ${MYSQL_DB}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      INFLUX_TOKEN: ${INFLUX_TOKEN}
+      INFLUXDB_ORG: ${INFLUXDB_ORG}
+      INFLUXDB_BUCKET: ${INFLUXDB_BUCKET}
+      INFLUXDB_HOST: ${INFLUXDB_HOST}
+      API_BASE_URL: ${API_BASE_URL}
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+    ports: 
+      - "8000:8000"
+    depends_on:
+      - db
+      - influxdb
+    environment:
+      INFLUX_TOKEN: ${INFLUX_TOKEN}
+      INFLUXDB_ORG: ${INFLUXDB_ORG}
+      INFLUXDB_BUCKET: ${INFLUXDB_BUCKET}
+      INFLUXDB_HOST: ${INFLUXDB_HOST}
+      API_BASE_URL: ${API_BASE_URL}
+    restart: unless-stopped
+
+  db:
+    image: mariadb:10.6.5
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./mariadb-data:/var/lib/mysql
+      - /etc/localtime:/etc/localtime:ro
+      - ./mydb.sql:/docker-entrypoint-initdb.d/mydb.sql
+    restart: always

@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>NTUA Thesis - API Docs</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous">
+  </head>
+  <body>
+  
+    <nav class="navbar navbar-expand-lg bg-body-tertiary fixed-top" data-bs-theme="dark">
+      <div class="container-fluid">
+        <a class="navbar-brand" href="#">NTUA Thesis</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarScroll" aria-controls="navbarScroll" aria-expanded="false" aria-label="Toggle navigation">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarScroll">
+          <ul class="navbar-nav me-auto my-2 my-lg-0 navbar-nav-scroll" style="--bs-scroll-height: 100px;">
+            <li class="nav-item">
+              <a class="nav-link" href="/">Home</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/cities">Cities</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/api">API</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link active" href="/api/docs">API Docs</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="https://github.com/sergiosb96/WeatherDatabase" target="_blank" rel="noopener" aria-label="GitHub"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" class="navbar-nav-svg" viewBox="0 0 512 499.36" role="img"><path fill="currentColor" fill-rule="evenodd" d="M256 0C114.64 0 0 114.61 0 256c0 113.09 73.34 209 175.08 242.9 12.8 2.35 17.47-5.56 17.47-12.34 0-6.08-.22-22.18-.35-43.54-71.2 15.49-86.2-34.34-86.2-34.34-11.64-29.57-28.42-37.45-28.42-37.45-23.27-15.84 1.73-15.55 1.73-15.55 25.69 1.81 39.21 26.38 39.21 26.38 22.84 39.12 59.92 27.82 74.5 21.27 2.33-16.54 8.94-27.82 16.25-34.22-56.84-6.43-116.6-28.43-116.6-126.49 0-27.95 10-50.8 26.35-68.69-2.63-6.48-11.42-32.5 2.51-67.75 0 0 21.49-6.88 70.4 26.24a242.65 242.65 0 0 1 128.18 0c48.87-33.13 70.33-26.24 70.33-26.24 14 35.25 5.18 61.27 2.55 67.75 16.41 17.9 26.31 40.75 26.31 68.69 0 98.35-59.85 120-116.88 126.32 9.19 7.9 17.38 23.53 17.38 47.41 0 34.22-.31 61.83-.31 70.23 0 6.85 4.61 14.81 17.6 12.31C438.72 464.97 512 369.08 512 256.02 512 114.62 397.37 0 256 0z"></path></svg></a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </nav>
+
+  <br><br>
+
+  <div style="margin-top:15px" class="container-md">
+    <div class="col-12 py-5"><h2 id="data-sources">Data Source</h2>
+      <p>This project uses the Open-Meteo API. The <b>Best Available</b> model is chosen automatically by Open-Meteo. Other available weather models cover different geographic areas at different resolutions and provide different weather variables. You can also see the number of parameters each source/model provides.</p>
+      <ol class="list-group list-group-numbered">
+        <li class="list-group-item d-flex justify-content-between align-items-start">
+          <div class="ms-2 me-auto">
+            <a href="#best_daily">
+              <div class="fw-bold">Best Available Daily</div>
+            </a>
+            This chooses the highest resolution model form the available ones and returns <b>daily</b> values.
+          </div>
+          <span class="badge bg-primary rounded-pill">5</span>
+        </li>
+        <li class="list-group-item d-flex justify-content-between align-items-start">
+          <div class="ms-2 me-auto">
+            <a href="#best_hourly">
+              <div class="fw-bold">Best Available Hourly</div>
+            </a>  
+            This chooses the highest resolution model form the available ones and returns <b>hourly</b> values.
+          </div>
+          <span class="badge bg-primary rounded-pill">16</span>
+        </li>
+        <li class="list-group-item d-flex justify-content-between align-items-start">
+          <div class="ms-2 me-auto">
+            <a href="#icon">
+              <div class="fw-bold">DWD ICON Hourly</div>
+            <a>
+            ICON weather models from the German Weather service DWD delivering <b>hourly</b> values for central Europe. For global forecasts the resolution is 11 km.
+          </div>
+          <span class="badge bg-primary rounded-pill">19</span>
+        </li>
+        <li class="list-group-item d-flex justify-content-between align-items-start">
+          <div class="ms-2 me-auto">
+            <a href="#icon_15">
+            <div class="fw-bold">DWD ICON 15-Minutely</div>
+            </a>
+            ICON weather models from the German Weather service DWD delivering <b>15-minutely</b> values for central Europe only.
+          </div>
+          <span class="badge bg-primary rounded-pill">5</span>
+        </li>
+        <li class="list-group-item d-flex justify-content-between align-items-start">
+          <div class="ms-2 me-auto">
+            <a href="#gfs">
+            <div class="fw-bold">GFS</div>
+            </a>
+            NOAA GFS weather model combined with the HRRR weather model delivering <b>hourly</b> values for US region only. 
+          </div>
+          <span class="badge bg-primary rounded-pill">12</span>
+        </li>
+      </li>
+      <li class="list-group-item d-flex justify-content-between align-items-start">
+        <div class="ms-2 me-auto">
+          <a href="#meteofrance">
+          <div class="fw-bold">MeteoFrance</div>
+          </a>
+          MeteoFrance's AROME and ARPEGE weather models delivering <b>hourly</b> values for Central Europe and specifically France. 
+        </div>
+        <span class="badge bg-primary rounded-pill">10</span>
+      </li>
+      </ol>
+        
+      <h2 id="api-docs" class="mt-5">API Documentation</h2>
+      <p>The API endpoint <b>/api/v1/query</b> accepts a data source, a geographical coordinate in the form of (lat, lon), a start date and an end date (2022-12-31T00:00:00) and weather variables. It then
+        responds with a JSON for the givem time period. Time always is alaways at the local time of the coordinates.
+        All URL parameters are listed below:</p>
+      <div class="table-responsive"><table class="table"><thead><tr>
+              <th scope="col">Parameter</th>
+              <th scope="col">Format</th>
+              <th scope="col">Required</th>
+              <th scope="col">Default</th>
+              <th scope="col">Description</th>
+              <th scope="col">Example</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+            <th scope="row">latitude, longitude</th>
+              <td>String (-xx.xxx, -yy.yyy)</td>
+              <td>Yes</td>
+              <td></td>
+              <td>Geographical WGS84 coordinate of the location</td>
+              <td>"(37.984, 23.728)"</td>
+            </tr>
+            <tr><th scope="row">source</th>
+              <td>String array	</td>
+              <td>Yes</td>
+              <td></td>
+              <td>Chose from the available sources from the cities table. 
+                You can use one source at a time.</td>
+              <td>"hourly_forecast" or "daily_forecast" or "icon_forecast" or "icon_15_forecast" or "gfs" or "meteofrance"</td>
+            </tr>
+            <tr>
+              <th scope="row">start_date</th>
+              <td>String (yyyy-mm-ddThh:mm:ss)</td>
+              <td>Yes</td>
+              <td></td>
+              <td>Starting time interval to get weather data</td>
+              <td>"2022-12-31T00:00:00"</td>
+            </tr>
+            <tr>
+              <th scope="row">end_date</th>
+              <td>String (yyyy-mm-ddThh:mm:ss)</td>
+              <td>Yes</td>
+              <td></td>
+              <td>Ending time interval to get weather data</td>
+              <td>"2022-12-31T00:00:00"</td>
+            </tr>
+            <tr><th scope="row">fields</th>
+              <td>String array</td>
+              <td>No</td>
+              <td></td>
+              <td>A comma seperated list of parameters that are specified for each source from the following tables</td>
+              <td>"humidity"</td>
+              </tr>
+          </tbody>
+        </table>
+        <p><u>Example URL:</u></p>
+        <p><mark>{{ api_base_url }}api/v1/query?source=hourly_forecast&coordinates=(37.984, 23.728)&start_date=2023-06-01&end_date=2023-06-06&fields=temperature,humidity</mark></p>
+      </div>
+    </div>
+
+    <h2 id="best_daily" class="mt-5">Best Available Daily</h2>
+      <p>The API endpoint <b>/api/v1/query?source=daily_forecast</b> accepts a geographical coordinate in the form of (lat, lon), a start date and an end date (2022-12-31T00:00:00) and weather variables. It then
+        responds with a JSON for the givem time period. Time always is alaways at the local time of the coordinates.
+        All URL parameters are listed below:</p>
+      <div class="table-responsive"><table class="table"><thead><tr>
+              <th scope="col">Field</th>
+              <th scope="col">Unit</th>
+              <th scope="col">Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+            <th scope="row">temparature_max_C</th>
+              <td>°C</td>
+              <td>Maximum air temperature at 2 meters above ground</td>
+            </tr>
+            <tr><th scope="row">temparature_min_C</th>
+              <td>°C</td>
+              <td>Minimum air temperature at 2 meters above ground</td>
+            </tr>
+            <tr>
+              <th scope="row">wind_speed</th>
+              <td>km/h</td>
+              <td>Maximum wind speed on a day</td>
+            </tr>
+            <tr>
+              <th scope="row">wind_direction</th>
+              <td>°</td>
+              <td>Dominant wind direction</td>
+            </tr>
+            <tr><th scope="row">shortwave_radiation_sum</th>
+              <td>MJ/m²</td>
+              <td>The sum of solar radiation on a given day in Megajoules</td>
+              </tr>
+          </tbody>
+        </table>
+        <p><u>Example URL:</u> <mark>{{ api_base_url }}api/v1/query?source=daily_forecast&coordinates=(37.984, 23.728)&start_date=2023-06-01&end_date=2023-06-02</mark> </p>
+      </div>
+
+      <h2 id="best_hourly" class="mt-5">Best Available Hourly</h2>
+      <p>The API endpoint <b>/api/v1/query?source=hourly_forecast</b> accepts a geographical coordinate in the form of (lat, lon), a start date and an end date (2022-12-31T00:00:00) and weather variables. It then
+        responds with a JSON for the givem time period. Time always is alaways at the local time of the coordinates.
+        All URL parameters are listed below:</p>
+      <div class="table-responsive"><table class="table"><thead><tr>
+              <th scope="col">Field</th>
+              <th scope="col">Unit</th>
+              <th scope="col">Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+            <th scope="row">temperature</th>
+              <td>°C</td>
+              <td>Air temperature at 2 meters above ground</td>
+            </tr>
+            <tr><th scope="row">humidity</th>
+              <td>°C</td>
+              <td>Relative humidity at 2 meters above ground</td>
+            </tr>
+            <tr>
+              <th scope="row">windspeed_10m<br>windspeed_80m<br>windspeed_120m<br>windspeed_180m</th>
+              <td>km/h</td>
+              <td>Wind speed at 10, 80, 120 or 180 meters above ground. Wind speed on 10 meters is the standard level.</td>
+            </tr>
+            <tr>
+              <th scope="row">winddirection_10m<br>winddirection_80m<br>winddirection_120m<br>winddirection_180m</th>
+              <td>°</td>
+              <td>Temperature at 80, 120 or 180 meters above ground</td>
+            </tr>
+            <tr>
+              <th scope="row">temperature_80m<br>temperature_120m<br>temperature_180m</th>
+              <td>°C</td>
+              <td>Wind direction at 10, 80, 120 or 180 meters above ground</td>
+            </tr>
+            <tr>
+              <th scope="row">shortwave_radiation</th>
+              <td>W/m²</td>
+              <td>Shortwave solar radiation as average of the preceding hour. This is equal to the total global horizontal irradiation</td>
+              </tr>
+            <tr>
+              <th scope="row">direct_radiation</th>
+              <td>W/m²</td>
+              <td>The solar radiation that reaches the Earth's surface without being diffused</td>
+              </tr>
+            <tr>
+              <th scope="row">diffuse_radiation</th>
+              <td>W/m²</td>
+              <td>The part of total radiation that reaches earth's surface after a change of its directions due to scattering by the atmosphere</td>
+              </tr>
+          </tbody>
+        </table>
+        <p><u>Example URL:</u> <mark>{{ api_base_url }}api/v1/query?source=hourly_forecast&coordinates=(37.984, 23.728)&start_date=2023-06-01&end_date=2023-06-02</mark></p>
+      </div>
+
+      <h2 id="icon" class="mt-5">ICON Hourly</h2>
+      <p>The API endpoint <b>/api/v1/query?source=icon_forecast</b> accepts a geographical coordinate in the form of (lat, lon), a start date and an end date (2022-12-31T00:00:00) and weather variables. It then
+        responds with a JSON for the givem time period. Time always is alaways at the local time of the coordinates.
+        All URL parameters are listed below:</p>
+      <div class="table-responsive"><table class="table"><thead><tr>
+              <th scope="col">Field</th>
+              <th scope="col">Unit</th>
+              <th scope="col">Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+            <th scope="row">temperature</th>
+              <td>°C</td>
+              <td>Air temperature at 2 meters above ground</td>
+            </tr>
+            <tr><th scope="row">humidity</th>
+              <td>°C</td>
+              <td>Relative humidity at 2 meters above ground</td>
+            </tr>
+            <tr>
+              <th scope="row">windspeed_10m<br>windspeed_80m<br>windspeed_120m<br>windspeed_180m</th>
+              <td>km/h</td>
+              <td>Wind speed at 10, 80, 120 or 180 meters above ground. Wind speed on 10 meters is the standard level.</td>
+            </tr>
+            <tr>
+              <th scope="row">winddirection_10m<br>winddirection_80m<br>winddirection_120m<br>winddirection_180m</th>
+              <td>°</td>
+              <td>Wind direction at 10, 80, 120 or 180 meters above ground</td>
+            </tr>
+            <tr>
+              <th scope="row">windgusts_10mm</th>
+              <td>km/h</td>
+              <td>Gusts at 10 meters above ground as a maximum of the preceding hour</td>
+            </tr>
+            <tr>
+              <th scope="row">temperature_80m<br>temperature_120m<br>temperature_180m</th>
+              <td>°C</td>
+              <td>Temperature at 80, 120 or 180 meters above ground</td>
+            </tr>
+            <tr>
+              <th scope="row">shortwave_radiation</th>
+              <td>W/m²</td>
+              <td>Shortwave solar radiation as average of the preceding hour. This is equal to the total global horizontal irradiation</td>
+              </tr>
+            <tr>
+              <th scope="row">direct_radiation</th>
+              <td>W/m²</td>
+              <td>The solar radiation that reaches the Earth's surface without being diffused</td>
+              </tr>
+            <tr>
+              <th scope="row">diffuse_radiation</th>
+              <td>W/m²</td>
+              <td>The part of total radiation that reaches earth's surface after a change of its directions due to scattering by the atmosphere</td>
+              </tr>
+            <tr>
+              <th scope="row">direct_normal_irradiance</th>
+              <td>W/m²</td>
+              <td>Direct Normal Irradiance (DNI) is the amount of solar radiation received per unit area by a surface that is always held perpendicular (or normal) to the rays that come in a straight line from the direction of the sun at its current position in the sky.</td>
+              </tr>
+            <tr>
+              <th scope="row">terrestrial_radiation</th>
+              <td>W/m²</td>
+              <td>TTerrestrial external radiation is due to the decay of radioactive materials in the earth itself</td>
+              </tr>
+          </tbody>
+        </table>
+        <p><u>Example URL:</u> <mark>{{ api_base_url }}api/v1/query?source=icon_forecast&coordinates=(37.984, 23.728)&start_date=2023-06-01&end_date=2023-06-02</mark></p>
+      </div>
+
+
+      <h2 id="icon_15" class="mt-5">ICON 15-Minutely</h2>
+      <p>The API endpoint <b>/api/v1/query?source=icon_15_forecast</b> accepts a geographical coordinate in the form of (lat, lon), a start date and an end date (2022-12-31T00:00:00) and weather variables. It then
+        responds with a JSON for the givem time period. Time always is alaways at the local time of the coordinates.
+        All URL parameters are listed below:</p>
+      <div class="table-responsive"><table class="table"><thead><tr>
+              <th scope="col">Field</th>
+              <th scope="col">Unit</th>
+              <th scope="col">Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">shortwave_radiation</th>
+              <td>W/m²</td>
+              <td>Shortwave solar radiation as average of the preceding hour. This is equal to the total global horizontal irradiation</td>
+              </tr>
+            <tr>
+              <th scope="row">direct_radiation</th>
+              <td>W/m²</td>
+              <td>The solar radiation that reaches the Earth's surface without being diffused</td>
+              </tr>
+            <tr>
+              <th scope="row">diffuse_radiation</th>
+              <td>W/m²</td>
+              <td>The part of total radiation that reaches earth's surface after a change of its directions due to scattering by the atmosphere</td>
+              </tr>
+            <tr>
+              <th scope="row">direct_normal_irradiance</th>
+              <td>W/m²</td>
+              <td>Direct Normal Irradiance (DNI) is the amount of solar radiation received per unit area by a surface that is always held perpendicular (or normal) to the rays that come in a straight line from the direction of the sun at its current position in the sky.</td>
+              </tr>
+            <tr>
+              <th scope="row">terrestrial_radiation</th>
+              <td>W/m²</td>
+              <td>TTerrestrial external radiation is due to the decay of radioactive materials in the earth itself</td>
+              </tr>
+          </tbody>
+        </table>
+        <p><u>Example URL:</u> <mark>{{ api_base_url }}api/v1/query?source=icon_15_forecast&coordinates=(37.984, 23.728)&start_date=2023-06-01&end_date=2023-06-02</mark></p>
+      </div>
+
+
+      <h2 id="gfs" class="mt-5">GFS Hourly</h2>
+      <p>The API endpoint <b>/api/v1/query?source=gfs_forecast</b> accepts a geographical coordinate in the form of (lat, lon), a start date and an end date (2022-12-31T00:00:00) and weather variables. It then
+        responds with a JSON for the givem time period. Time always is alaways at the local time of the coordinates.
+        All URL parameters are listed below:</p>
+      <div class="table-responsive"><table class="table"><thead><tr>
+              <th scope="col">Field</th>
+              <th scope="col">Unit</th>
+              <th scope="col">Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+            <th scope="row">temperature</th>
+              <td>°C</td>
+              <td>Air temperature at 2 meters above ground</td>
+            </tr>
+            <tr><th scope="row">humidity</th>
+              <td>°C</td>
+              <td>Relative humidity at 2 meters above ground</td>
+            </tr>
+            <tr>
+              <th scope="row">windspeed_10m<br>windspeed_80m</th>
+              <td>km/h</td>
+              <td>Wind speed at 10 or 80 meters above ground. Wind speed on 10 meters is the standard level.</td>
+            </tr>
+            <tr>
+              <th scope="row">winddirection_10m<br>winddirection_80m</th>
+              <td>°</td>
+              <td>Wind direction at 10 or 80 meters above ground</td>
+            </tr>
+            <tr>
+              <th scope="row">windgusts_10mm</th>
+              <td>km/h</td>
+              <td>Gusts at 10 meters above ground as a maximum of the preceding hour</td>
+            </tr>
+            <tr>
+              <th scope="row">shortwave_radiation</th>
+              <td>W/m²</td>
+              <td>Shortwave solar radiation as average of the preceding hour. This is equal to the total global horizontal irradiation</td>
+              </tr>
+            <tr>
+              <th scope="row">direct_radiation</th>
+              <td>W/m²</td>
+              <td>The solar radiation that reaches the Earth's surface without being diffused</td>
+              </tr>
+            <tr>
+              <th scope="row">diffuse_radiation</th>
+              <td>W/m²</td>
+              <td>The part of total radiation that reaches earth's surface after a change of its directions due to scattering by the atmosphere</td>
+              </tr>
+             <tr>
+              <th scope="row">direct_normal_irradiance</th>
+              <td>W/m²</td>
+              <td>Direct Normal Irradiance (DNI) is the amount of solar radiation received per unit area by a surface that is always held perpendicular (or normal) to the rays that come in a straight line from the direction of the sun at its current position in the sky.</td>
+              </tr>
+            <tr>
+              <th scope="row">terrestrial_radiation</th>
+              <td>W/m²</td>
+              <td>TTerrestrial external radiation is due to the decay of radioactive materials in the earth itself</td>
+              </tr>
+          </tbody>
+        </table>
+        <p><u>Example URL:</u> <mark>{{ api_base_url }}api/v1/query?source=gfs_forecast&coordinates=(37.984, 23.728)&start_date=2023-06-01&end_date=2023-06-02</mark></p>
+      </div>
+
+
+      <h2 id="meteofrance" class="mt-5">MeteoFrance Hourly</h2>
+      <p>The API endpoint <b>/api/v1/query?source=meteofrance_forecast</b> accepts a geographical coordinate in the form of (lat, lon), a start date and an end date (2022-12-31T00:00:00) and weather variables. It then
+        responds with a JSON for the givem time period. Time always is alaways at the local time of the coordinates.
+        All URL parameters are listed below:</p>
+      <div class="table-responsive"><table class="table"><thead><tr>
+              <th scope="col">Field</th>
+              <th scope="col">Unit</th>
+              <th scope="col">Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+            <th scope="row">temperature</th>
+              <td>°C</td>
+              <td>Air temperature at 2 meters above ground</td>
+            </tr>
+            <tr><th scope="row">humidity</th>
+              <td>°C</td>
+              <td>Relative humidity at 2 meters above ground</td>
+            </tr>
+            <tr>
+              <th scope="row">windspeed_10m</th>
+              <td>km/h</td>
+              <td>Wind speed at 10 meters above ground. Wind speed on 10 meters is the standard level.</td>
+            </tr>
+            <tr>
+              <th scope="row">winddirection_10m</th>
+              <td>°</td>
+              <td>Temperature at 10 meters above ground</td>
+            </tr>
+            <tr>
+              <th scope="row">windgusts_10mm</th>
+              <td>km/h</td>
+              <td>Gusts at 10 meters above ground as a maximum of the preceding hour</td>
+            </tr>
+            <tr>
+              <th scope="row">shortwave_radiation</th>
+              <td>W/m²</td>
+              <td>Shortwave solar radiation as average of the preceding hour. This is equal to the total global horizontal irradiation</td>
+              </tr>
+            <tr>
+              <th scope="row">direct_radiation</th>
+              <td>W/m²</td>
+              <td>The solar radiation that reaches the Earth's surface without being diffused</td>
+              </tr>
+            <tr>
+              <th scope="row">diffuse_radiation</th>
+              <td>W/m²</td>
+              <td>The part of total radiation that reaches earth's surface after a change of its directions due to scattering by the atmosphere</td>
+              </tr>
+            <tr>
+              <th scope="row">direct_normal_irradiance</th>
+              <td>W/m²</td>
+              <td>Direct Normal Irradiance (DNI) is the amount of solar radiation received per unit area by a surface that is always held perpendicular (or normal) to the rays that come in a straight line from the direction of the sun at its current position in the sky.</td>
+              </tr>
+            <tr>
+              <th scope="row">terrestrial_radiation</th>
+              <td>W/m²</td>
+              <td>TTerrestrial external radiation is due to the decay of radioactive materials in the earth itself</td>
+              </tr>
+          </tbody>
+        </table>
+        <p><u>Example URL:</u> <mark>{{ api_base_url }}api/v1/query?source=meteofrance_forecast&coordinates=(37.984, 23.728)&start_date=2023-06-01&end_date=2023-06-02</mark></p>
+      </div>
+
+    <footer class="container py-5 pt-4 my-md-5 pt-md-5"><div class="row"><div class="col-6 col-md"></div>
+	  <div class="text-center pt-3"><small class="d-block text-muted">© 2022-2023 Copyright</small></div></footer>
+
+      <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js" integrity="sha384-I7E8VVD/ismYTF4hNIPjVp/Zjvgyol6VFvRkX/vR+Vc4jQkC+hVqc2pM8ODewa9r" crossorigin="anonymous"></script>
+      <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.min.js" integrity="sha384-fbbOQedDUMZZ5KreZpsbe1LCZPVmfTnH7ois6mU1QK+m14rQ1l2bGBq41eYeM/fS" crossorigin="anonymous"></script>
+  </body>
+</html>

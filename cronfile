@@ -1,0 +1,3 @@
+# Run the Python script at 14:00  every day
+
+0 14 * * * root python /weather.py
