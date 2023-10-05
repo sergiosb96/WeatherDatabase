@@ -40,7 +40,7 @@ def retrieve_city_data():
 
     cur = conn.cursor()
     # Query the database for city data
-    cur.execute("SELECT city_id, name, lat, lon, country, country_code, daily, hourly, icon, icon_15, gfs, meteofrance FROM cities")
+    cur.execute("SELECT city_id, active, name, lat, lon, country, country_code, added, started, daily, hourly , icon, icon_15, gfs, meteofrance FROM cities")
 
     city_data = cur.fetchall()
     # Close database connections
@@ -48,6 +48,26 @@ def retrieve_city_data():
     conn.close()
 
     return city_data
+
+# Retrieve query urls from MariaDB
+def retrieve_query_urls():
+    conn = pymysql.connect(
+        user=str(os.getenv('MYSQL_USER')),
+        password=str(os.getenv('MYSQL_PASSWORD')),
+        host=str(os.getenv('MYSQL_HOST')),
+        database=str(os.getenv('MYSQL_DB'))
+    )
+
+    cur = conn.cursor()
+    # Query the database for city data
+    cur.execute("SELECT query_urls_id, city_id, daily, hourly , icon, icon_15, gfs, meteofrance FROM query_urls")
+
+    query_urls = cur.fetchall()
+    # Close database connections
+    cur.close()
+    conn.close()
+
+    return query_urls
 
 def date_to_unixtime(date_string):
     # Specify the input date string
@@ -67,17 +87,11 @@ def time_to_unixtime(date_string):
     # Specify the input date string format
     date_format = "%Y-%m-%dT%H:%M"
 
-    # Convert the date string to a datetime object
-    date_object = datetime.datetime.strptime(date_string, date_format)
+    # Convert the date string to a datetime object assuming it's in UTC
+    utc_datetime = datetime.datetime.strptime(date_string, date_format)
 
-    # Get the local time zone offset in seconds
-    local_tz_offset = datetime.datetime.now(datetime.timezone.utc).astimezone().utcoffset().total_seconds()
-
-    # Add the local time zone offset to the datetime object
-    date_object += datetime.timedelta(seconds=local_tz_offset)
-
-    # Convert the adjusted datetime object to Unix time
-    unix_time = int(date_object.timestamp())
+    # Convert the datetime object to Unix time
+    unix_time = int(utc_datetime.timestamp())
     return unix_time
 
 def validate_and_normalize_coord(d: float) -> float:
@@ -419,7 +433,12 @@ def fetch_and_store_weather_data():
 
     # Loop through each city and fetch weather data
     for row in city_data:
-        city_id, name, lat, lon, country, country_code, daily, hourly , icon, icon_15, gfs, meteofrance = row
+        city_id, active, name, lat, lon, country, country_code, added, started, daily, hourly , icon, icon_15, gfs, meteofrance = row
+        
+        if active == 0:
+            log_to_file(f"Data collection skipped for {name} as it is not active")
+            continue  # Skip to the next iteration
+    
         try:
             if daily == 1:
                 data = fetch_daily_data(lat, lon)
@@ -452,8 +471,59 @@ def fetch_and_store_weather_data():
     # Close database connections
     client.close()
 
+
+def store_query_urls(city_data):
+    try:
+        # Use the same connection setup as your existing function
+        conn = pymysql.connect(
+            user=str(os.getenv('MYSQL_USER')),
+            password=str(os.getenv('MYSQL_PASSWORD')),
+            host=str(os.getenv('MYSQL_HOST')),
+            database=str(os.getenv('MYSQL_DB'))
+        )
+        
+        cur = conn.cursor()
+        
+        # Loop through each city and store query URLs
+        for row in city_data:
+            city_id, _, _, lat, lon, _, _, _, _, daily, hourly, icon, icon_15, gfs, meteofrance = row
+            
+            # Check if an entry with the specified city_id already exists
+            cur.execute("SELECT 1 FROM query_urls WHERE city_id = %s", (city_id,))
+            if cur.fetchone():  # If an entry already exists, skip to the next iteration
+                continue
+            
+            # Formulate URLs and SQL query similar to previous examples.
+            daily_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&daily=temperature_2m_max,temperature_2m_min,windspeed_10m_max,winddirection_10m_dominant,shortwave_radiation_sum&timezone=auto" if daily == 1 else None
+            hourly_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&hourly=temperature_2m,relativehumidity_2m,windspeed_10m,windspeed_80m,windspeed_120m,windspeed_180m,winddirection_10m,winddirection_80m,winddirection_120m,winddirection_180m,windgusts_10m,temperature_80m,temperature_120m,temperature_180m,shortwave_radiation,direct_radiation,diffuse_radiation&forecast_days=2&timezone=auto" if hourly == 1 else None
+            icon_url = f"https://api.open-meteo.com/v1/dwd-icon?latitude={lat}&longitude={lon}&hourly=temperature_2m,relativehumidity_2m,windspeed_10m,windspeed_80m,windspeed_120m,windspeed_180m,winddirection_10m,winddirection_80m,winddirection_120m,winddirection_180m,windgusts_10m,temperature_80m,temperature_120m,temperature_180m,shortwave_radiation,direct_radiation,diffuse_radiation,direct_normal_irradiance,terrestrial_radiation&timezone=auto" if icon == 1 else None
+            icon_15_url = f"https://api.open-meteo.com/v1/dwd-icon?latitude={lat}&longitude={lon}&minutely_15=shortwave_radiation,direct_radiation,diffuse_radiation,direct_normal_irradiance,terrestrial_radiation&timezone=auto" if icon_15 == 1 else None
+            gfs_url = f"https://api.open-meteo.com/v1/gfs?latitude={lat}&longitude={lon}&hourly=temperature_2m,relativehumidity_2m,windspeed_10m,windspeed_80m,winddirection_10m,winddirection_80m,windgusts_10m,shortwave_radiation,direct_radiation,diffuse_radiation,direct_normal_irradiance,terrestrial_radiation&forecast_days=2&timezone=auto" if gfs == 1 else None
+            meteofrance_url = f"https://api.open-meteo.com/v1/meteofrance?latitude={lat}&longitude={lon}&hourly=temperature_2m,relativehumidity_2m,windspeed_10m,winddirection_10m,windgusts_10m,shortwave_radiation,direct_radiation,diffuse_radiation,direct_normal_irradiance,terrestrial_radiation&forecast_days=2&timezone=auto" if meteofrance == 1 else None
+            
+            # Formulate SQL query to insert the URLs into query_urls table
+            insert_query = """INSERT INTO query_urls(city_id, daily, hourly, icon, icon_15, gfs, meteofrance) VALUES (%s, %s, %s, %s, %s, %s, %s)"""
+            values = (city_id, daily_url, hourly_url, icon_url, icon_15_url, gfs_url, meteofrance_url)
+            
+            # Execute the query
+            cur.execute(insert_query, values)
+            conn.commit()
+
+    except Exception as e:
+        print("Error while connecting to MySQL", e)
+    finally:
+        # Ensure the connection is closed.
+        cur.close()
+        conn.close()
+
+
+
+
 # Run the script
 fetch_and_store_weather_data()
+city_data = retrieve_city_data()
+store_query_urls(city_data)
+
 
 # Calculate elapsed time
 end_time = time.time()
