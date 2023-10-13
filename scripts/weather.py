@@ -40,7 +40,7 @@ def retrieve_city_data():
 
     cur = conn.cursor()
     # Query the database for city data
-    cur.execute("SELECT city_id, active, name, lat, lon, country, country_code, added, started, daily, hourly , icon, icon_15, gfs, meteofrance FROM cities")
+    cur.execute("SELECT city_id, active, name, lat, lon, tz, country, country_code, added, started, daily, hourly , icon, icon_15, gfs, meteofrance, comment FROM cities")
 
     city_data = cur.fetchall()
     # Close database connections
@@ -69,29 +69,77 @@ def retrieve_query_urls():
 
     return query_urls
 
+# Retrieve timezones from MariaDB
+def retrieve_tz_data():
+    conn = pymysql.connect(
+        user=str(os.getenv('MYSQL_USER')),
+        password=str(os.getenv('MYSQL_PASSWORD')),
+        host=str(os.getenv('MYSQL_HOST')),
+        database=str(os.getenv('MYSQL_DB'))
+    )
+    cur = conn.cursor()
+
+    # Query the database for city data
+    cur.execute("SELECT city_id, lat, lon FROM cities WHERE tz IS NULL OR tz = ''")
+
+    tz_data = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return tz_data
+
+def is_it_23_local(utc_offset_seconds_str):
+
+    """Returns True if it's 23:00 local time based on the stored UTC offset in seconds"""
+    try:
+        utc_offset_seconds = int(utc_offset_seconds_str)
+    except ValueError:
+        return False
+
+    utc_now = datetime.datetime.utcnow()
+    local_time = utc_now + datetime.timedelta(seconds=utc_offset_seconds)
+    return local_time.hour == 23
+
+def get_timezone(lat, lon):
+    # call open-meteo to get the timezone offset
+    url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&hourly=temperature_2m&timezone=auto&forecast_days=1"
+    response = requests.get(url)
+    response_data = response.json()
+    return response_data['utc_offset_seconds']
+
+def local_offset():
+    """Get the local timezone offset in hours from UTC."""
+    offset_seconds = -time.altzone if time.localtime().tm_isdst else -time.timezone
+    return offset_seconds / 3600
+
 def date_to_unixtime(date_string):
     # Specify the input date string
     date_format = "%Y-%m-%d"
-
+    
     # Convert the date string to a datetime object
     date_object = datetime.datetime.strptime(date_string, date_format)
 
-    # Add 3 hours to the datetime object
-    date_object += datetime.timedelta(hours=3)
+    # Adjust the datetime object by the local timezone offset
+    date_object += datetime.timedelta(hours=local_offset())
 
     # Convert the adjusted datetime object to Unix time
     unix_time = int(date_object.timestamp())
     return unix_time
 
+
 def time_to_unixtime(date_string):
     # Specify the input date string format
     date_format = "%Y-%m-%dT%H:%M"
+    
+    # Convert the date string to a datetime object
+    datetime_object = datetime.datetime.strptime(date_string, date_format)
 
-    # Convert the date string to a datetime object assuming it's in UTC
-    utc_datetime = datetime.datetime.strptime(date_string, date_format)
+    # Adjust the datetime object by the local timezone offset
+    datetime_object += datetime.timedelta(hours=local_offset())
 
-    # Convert the datetime object to Unix time
-    unix_time = int(utc_datetime.timestamp())
+    # Convert the adjusted datetime object to Unix time
+    unix_time = int(datetime_object.timestamp())
     return unix_time
 
 def validate_and_normalize_coord(d: float) -> float:
@@ -422,8 +470,9 @@ def store_meteofrance_data_in_influxdb(data6, lat, lon, write_api): # hourly dat
             .time(unix_time, write_precision='s')
         ])
 
-# Fetch and store weather data
+
 def fetch_and_store_weather_data():
+
     # Connect to InfluxDB
     client = InfluxDBClient(url=influx_url, token=influx_token)
     write_api = client.write_api(write_options=SYNCHRONOUS)
@@ -433,13 +482,20 @@ def fetch_and_store_weather_data():
 
     # Loop through each city and fetch weather data
     for row in city_data:
-        city_id, active, name, lat, lon, country, country_code, added, started, daily, hourly , icon, icon_15, gfs, meteofrance = row
+        city_id, active, name, lat, lon, tz, country, country_code, added, started, daily, hourly , icon, icon_15, gfs, meteofrance, comment = row
+
+        # Check if localtime is 23:00
+        if not is_it_23_local(tz):
+            log_to_file(f"Data collection skipped for {name} as localtime is not 23:00")
+            continue 
         
+        # Check if city is active
         if active == 0:
             log_to_file(f"Data collection skipped for {name} as it is not active")
-            continue  # Skip to the next iteration
-    
+            continue
+
         try:
+
             if daily == 1:
                 data = fetch_daily_data(lat, lon)
                 store_daily_data_in_influxdb(data, lat, lon, write_api)
@@ -468,13 +524,13 @@ def fetch_and_store_weather_data():
         except Exception as e:
             logging.error(f"Error fetching weather data for {name} from API: {str(e)}")
 
-    # Close database connections
+    # close database connections
     client.close()
+
 
 
 def store_query_urls(city_data):
     try:
-        # Use the same connection setup as your existing function
         conn = pymysql.connect(
             user=str(os.getenv('MYSQL_USER')),
             password=str(os.getenv('MYSQL_PASSWORD')),
@@ -484,16 +540,15 @@ def store_query_urls(city_data):
         
         cur = conn.cursor()
         
-        # Loop through each city and store query URLs
+        # loop through each city and store query URLs
         for row in city_data:
-            city_id, _, _, lat, lon, _, _, _, _, daily, hourly, icon, icon_15, gfs, meteofrance = row
+            city_id, _, _, lat, lon, _, _, _, _, _, daily, hourly, icon, icon_15, gfs, meteofrance, _ = row
             
-            # Check if an entry with the specified city_id already exists
+            # check if an entry already exists
             cur.execute("SELECT 1 FROM query_urls WHERE city_id = %s", (city_id,))
-            if cur.fetchone():  # If an entry already exists, skip to the next iteration
+            if cur.fetchone():
                 continue
             
-            # Formulate URLs and SQL query similar to previous examples.
             daily_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&daily=temperature_2m_max,temperature_2m_min,windspeed_10m_max,winddirection_10m_dominant,shortwave_radiation_sum&timezone=auto" if daily == 1 else None
             hourly_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&hourly=temperature_2m,relativehumidity_2m,windspeed_10m,windspeed_80m,windspeed_120m,windspeed_180m,winddirection_10m,winddirection_80m,winddirection_120m,winddirection_180m,windgusts_10m,temperature_80m,temperature_120m,temperature_180m,shortwave_radiation,direct_radiation,diffuse_radiation&forecast_days=2&timezone=auto" if hourly == 1 else None
             icon_url = f"https://api.open-meteo.com/v1/dwd-icon?latitude={lat}&longitude={lon}&hourly=temperature_2m,relativehumidity_2m,windspeed_10m,windspeed_80m,windspeed_120m,windspeed_180m,winddirection_10m,winddirection_80m,winddirection_120m,winddirection_180m,windgusts_10m,temperature_80m,temperature_120m,temperature_180m,shortwave_radiation,direct_radiation,diffuse_radiation,direct_normal_irradiance,terrestrial_radiation&timezone=auto" if icon == 1 else None
@@ -501,29 +556,60 @@ def store_query_urls(city_data):
             gfs_url = f"https://api.open-meteo.com/v1/gfs?latitude={lat}&longitude={lon}&hourly=temperature_2m,relativehumidity_2m,windspeed_10m,windspeed_80m,winddirection_10m,winddirection_80m,windgusts_10m,shortwave_radiation,direct_radiation,diffuse_radiation,direct_normal_irradiance,terrestrial_radiation&forecast_days=2&timezone=auto" if gfs == 1 else None
             meteofrance_url = f"https://api.open-meteo.com/v1/meteofrance?latitude={lat}&longitude={lon}&hourly=temperature_2m,relativehumidity_2m,windspeed_10m,winddirection_10m,windgusts_10m,shortwave_radiation,direct_radiation,diffuse_radiation,direct_normal_irradiance,terrestrial_radiation&forecast_days=2&timezone=auto" if meteofrance == 1 else None
             
-            # Formulate SQL query to insert the URLs into query_urls table
             insert_query = """INSERT INTO query_urls(city_id, daily, hourly, icon, icon_15, gfs, meteofrance) VALUES (%s, %s, %s, %s, %s, %s, %s)"""
             values = (city_id, daily_url, hourly_url, icon_url, icon_15_url, gfs_url, meteofrance_url)
+
+            log_to_file(f"Query URLs for city id {city_id} added")
             
-            # Execute the query
+            # execute the query
             cur.execute(insert_query, values)
             conn.commit()
 
     except Exception as e:
         print("Error while connecting to MySQL", e)
     finally:
-        # Ensure the connection is closed.
+        # close connetction
         cur.close()
         conn.close()
 
 
+def store_timezones(tz_data):
+    conn = pymysql.connect(
+        user=str(os.getenv('MYSQL_USER')),
+        password=str(os.getenv('MYSQL_PASSWORD')),
+        host=str(os.getenv('MYSQL_HOST')),
+        database=str(os.getenv('MYSQL_DB'))
+    )
+    cur = conn.cursor()
+
+    # loop through each city to fetch and store timezones
+    for row in tz_data:
+        city_id, _, _, lat, lon, _, _, _, _, _, _, _, _, _, _, _, _ = row
+
+        # check if tz already exists
+        cur.execute("SELECT tz FROM cities WHERE city_id = %s", (city_id,))
+        if cur.fetchone()[0]:  # If timezone already exists, skip to the next iteration
+            continue
+
+        timezone = get_timezone(lat, lon)
+
+        log_to_file(f"Timezone for city id {city_id} added")
+
+        # update the tz
+        cur.execute("UPDATE cities SET tz = %s WHERE city_id = %s", (timezone, city_id))
+        conn.commit()
+
+    cur.close()
+    conn.close()
+
 
 
 # Run the script
-fetch_and_store_weather_data()
 city_data = retrieve_city_data()
 store_query_urls(city_data)
-
+tz_data = retrieve_city_data()
+store_timezones(tz_data)
+fetch_and_store_weather_data()
 
 # Calculate elapsed time
 end_time = time.time()

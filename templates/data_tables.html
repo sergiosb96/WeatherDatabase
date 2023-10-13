@@ -3,40 +3,14 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>NTUA Thesis - API</title>
-    <style>
-      .url-generator {
-          border: 1px solid #ccc;
-          border-radius: 5px;
-          padding: 5px;
-          width: 1180px;
-          background-color: #f9f9f9;
-      }
-      .data-box {
-          border: 1px solid #ccc;
-          border-radius: 5px;
-          padding: 5px;
-          background-color: #f9f9f9;
-          max-width: 1600px;
-          overflow: auto;
-          max-height: 2500px;
-      }
-  </style>
-    <script>
-      function copyURL() {
-          var urlInput = document.getElementById("url-input");
-          urlInput.select();
-          document.execCommand("copy");
-          alert("URL copied to clipboard!");
-      }
-  </script>
+    <title>NTUA Thesis - Home</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous">
   </head>
   <body>
   
     <nav class="navbar navbar-expand-lg bg-body-tertiary fixed-top" data-bs-theme="dark">
       <div class="container-fluid">
-        <a class="navbar-brand" href="#">NTUA Thesis</a>
+        <a class="navbar-brand" href="/">NTUA Thesis</a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarScroll" aria-controls="navbarScroll" aria-expanded="false" aria-label="Toggle navigation">
           <span class="navbar-toggler-icon"></span>
         </button>
@@ -45,21 +19,20 @@
             <li class="nav-item">
               <a class="nav-link" href="/">Home</a>
             </li>
-            </li>
             <li class="nav-item">
               <a class="nav-link" href="/cities">Cities</a>
             </li>
             </li>
             <li class="nav-item">
-            <a class="nav-link" href="/data_tables">Data Tables</a>
+            <a class="nav-link active" href="/data_tables">Data Tables</a>
             </li>
             </li>
             <li class="nav-item">
             <a class="nav-link" href="/data_charts">Data Charts</a>
             </li>
             <li class="nav-item">
-              <a class="nav-link active" href="/api">API</a>
-
+              <a class="nav-link" href="/api">API</a>
+            </li>
             <li class="nav-item">
               <a class="nav-link" href="/api/docs">API Docs</a>
             </li>
@@ -74,10 +47,10 @@
     <br><br>
 
     <div style="margin-top:15px" class="container-md">
-      <h3 class="text-center">API URL Generator</h3>
+      <h3 class="text-center">Data Tables</h3>
       <div class="row">
         <div style="margin-right:15px; padding:15px" class="col border border-secondary rounded">
-          <form method="POST" class="row g-2" onsubmit="return validateForm()">
+          <form method="POST" id="submit" class="row g-2" onsubmit="return validateForm()">
             <div class="col-md-6">
               <label for="city">City:</label>
               <select class="form-select" name="city_id" id="city" onchange="updateCityName()">
@@ -117,72 +90,60 @@
 
             <br><br>
 
-            <input type="submit" class="btn btn-primary" value="Generate API URL">
+            <input type="submit" class="btn btn-primary" value="Generate Data Tables">
         </form>
       </div>
     </div>
 
-    <br><br>
-
-    <div style="margin-top:15px; padding:15px" class="container-md border border-secondary rounded">
-    <h5>API URL:</h5>
-    <div class="input-group">
-      <input id="url-input" class="url-generator" type="text" name="api_url" value="{{ api_url }}" readonly>
-      <div class="input-group-append">
-        <button style="margin-left:10px" class="btn btn-secondary" type="button" onclick="copyURL()">Copy</button>
-      </div>
-    </div>
-  </div>
-  
 
   <br><br>
   <div style="padding:15px" class="col border border-secondary rounded">
   <div style="margin-top:5px" class="table-responsive rounded">
 
-    <h5 class="text">API Data:</h5>
+    <h5 class="text">Data:</h5>
     <br>
     <h6 class="text">City: {{ selected_city }}</h6>
     <h6 class="text">Coordinates: {{ city_coordinates }}</h6>
-    <h6 class="text">Data Source: {{ selected_sources }}</h6>
-    <h6 class="text">Start Date: {{ start_date }}</h6>
-    <h6 class="text">End Date: {{ end_date }}</h6>
-    <h6 class="text">Date Added: {{ added }}</h6>
-    <h6 class="text">Date Started: {{ started }}</h6>
-    <h6 class="text">Open-Meteo API Url: {{ url_to_use }}</h6>
-    <form method="POST" action="/export_csv" style="display: inline-block;">
-        <input type="hidden" name="api_url" value="{{ api_url }}">
-        <input type="hidden" name="url_to_use" value="{{ url_to_use }}">
-        <input type="hidden" name="city_name" value="{{ selected_city }}">
-        <input type="hidden" name="coordinates" value="{{ city_coordinates }}">
-        <input type="hidden" name="measurement" value="{{ selected_sources }}">
-        <input type="hidden" name="start_date" value="{{ start_date }}">
-        <input type="hidden" name="end_date" value="{{ end_date }}">
-        <input type="hidden" name="added" value="{{ added }}">
-        <input type="hidden" name="started" value="{{ started }}">
-        <button type="submit" class="btn btn-primary">Export to CSV</button>
-    </form>
-    <form method="POST" action="/export_json" style="display: inline-block;">
-        <input type="hidden" name="api_url" value="{{ api_url }}">
-        <input type="hidden" name="url_to_use" value="{{ url_to_use }}">
-        <input type="hidden" name="coordinates" value="{{ city_coordinates }}">
-        <button type="submit" class="btn btn-primary">Export to JSON</button>
-    </form>
+    <h6 class="text">Data Source: {{ measurement }}</h6>
+    <h6 class="text">Start Date: {{ start_date }} &  End Date: {{ end_date }}</h6>
     </div>
   </div>
     <br><br>
 
+    <div style="padding:15px" class="col border border-secondary rounded data-box">
+      <div style="margin-top:5px" class="table-responsive rounded">
+        <h5 class="text">Tables:</h5>
+        <br>
+        {% if dfs %}
+        {% for field, df in dfs.items() %}
+        <h6 class="text">Table: {{ field }}</h6>
+            <table style="margin-top:15px" class="table table-hover table-bordered border-primary" id="data_table">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Value</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for index, row in df.iterrows() %}
+                        <tr>
+                            <td>{{ row['_time'] }}</td>
+                            <td>{{ row['_value'] }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% endfor %}
+        {% endif %}
+    </div>
+    </div>
+
+    <br><br>
 
   </div>
 
-
-    <footer class="container py-5 pt-4 my-md-5 pt-md-5">
-      <div class="row">
-        <div class="col-6 col-md"></div>
-        <div class="text-center pt-3">
-          <small class="d-block text-muted">© 2022-2023 Copyright</small>
-        </div>
-      </div>
-    </footer>
+    <footer class="container py-5 pt-4 my-md-5 pt-md-5"><div class="row"><div class="col-6 col-md"></div>
+	  <div class="text-center pt-3"><small class="d-block text-muted">© 2022-2023 Copyright</small></div></footer>
 
     <script>
       function updateCityName() {
@@ -198,9 +159,29 @@
         updateCityName();
       });
 
+      document.getElementById('submit').addEventListener('submit', function (event) {
+          event.preventDefault();
+          
+          let formData = new FormData(this);
+          
+          fetch('/data_tables', {
+              method: 'POST',
+              body: formData,
+          })
+          .then(response => response.json())
+          .then(data => {
+              if (data.error) {
+                  alert(data.error);
+              } else {
+                  document.body.innerHTML = data.template;
+              }
+          })
+          .catch(error => console.error('There was an error!', error));
+      });
+
     </script>
 
-    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js" integrity="sha384-I7E8VVD/ismYTF4hNIPjVp/Zjvgyol6VFvRkX/vR+Vc4jQkC+hVqc2pM8ODewa9r" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.min.js" integrity="sha384-fbbOQedDUMZZ5KreZpsbe1LCZPVmfTnH7ois6mU1QK+m14rQ1l2bGBq41eYeM/fS" crossorigin="anonymous"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js" integrity="sha384-I7E8VVD/ismYTF4hNIPjVp/Zjvgyol6VFvRkX/vR+Vc4jQkC+hVqc2pM8ODewa9r" crossorigin="anonymous"></script>
+      <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.min.js" integrity="sha384-fbbOQedDUMZZ5KreZpsbe1LCZPVmfTnH7ois6mU1QK+m14rQ1l2bGBq41eYeM/fS" crossorigin="anonymous"></script>
   </body>
 </html>

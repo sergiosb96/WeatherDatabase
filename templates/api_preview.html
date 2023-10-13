@@ -49,14 +49,6 @@
             <li class="nav-item">
               <a class="nav-link" href="/cities">Cities</a>
             </li>
-            </li>
-            <li class="nav-item">
-            <a class="nav-link" href="/data_tables">Data Tables</a>
-            </li>
-            </li>
-            <li class="nav-item">
-            <a class="nav-link" href="/data_charts">Data Charts</a>
-            </li>
             <li class="nav-item">
               <a class="nav-link active" href="/api">API</a>
 
@@ -79,26 +71,25 @@
         <div style="margin-right:15px; padding:15px" class="col border border-secondary rounded">
           <form method="POST" class="row g-2" onsubmit="return validateForm()">
             <div class="col-md-6">
-              <label for="city">City:</label>
-              <select class="form-select" name="city_id" id="city" onchange="updateCityName()">
-                {% for city in cities %}
-                  <option value="{{ city[0] }}" data-name="{{ city[1] }}">{{ city[1] }} (lat: {{ city[2] }}, lon: {{ city[3] }})</option>
-                {% endfor %}
-              </select>
-              <input type="hidden" name="city_name" id="city_name" value="">
-            </div>
+            <label for="city">City:</label>
+            <select class="form-select" name="city" id="city">
+              {% for city in cities %}
+                  <option value="{{ city[0] }}">{{ city[0] }} (lat: {{ city[1] }}, lon: {{ city[2] }})</option>
+              {% endfor %}
+            </select>
+          </div>
 
             <br><br>
 
             <div class="col-md-6">
             <label for="source">Data Source:</label>
             <select class="form-select" name="sources" id="sources">
-              <option value="daily_forecast"> Best Available Daily</option>
-              <option value="hourly_forecast"> Best Available Hourly</option>
-              <option value="icon_forecast"> ICON Hourly</option>
-              <option value="icon_15_forecast"> ICON 15-Minutely</option>
-              <option value="gfs_forecast"> GFS Hourly</option>
-              <option value="meteofrance_forecast"> MeteoFrance Hourly</option>
+              <option type="checkbox" name="source" value="daily_forecast"> Best Available Daily</option>
+              <option type="checkbox" name="source" value="hourly_forecast"> Best Available Hourly</option>
+              <option type="checkbox" name="source" value="icon_forecast"> ICON Hourly</option>
+              <option type="checkbox" name="source" value="icon_15_forecast"> ICON 15-Minutely</option>
+              <option type="checkbox" name="source" value="gfs_forecast"> GFS Hourly</option>
+              <option type="checkbox" name="source" value="meteofrance_forecast"> MeteoFrance Hourly</option>
             </select>
             </div>
 
@@ -141,38 +132,66 @@
 
     <h5 class="text">API Data:</h5>
     <br>
+    {% if dfs %}
     <h6 class="text">City: {{ selected_city }}</h6>
     <h6 class="text">Coordinates: {{ city_coordinates }}</h6>
-    <h6 class="text">Data Source: {{ selected_sources }}</h6>
-    <h6 class="text">Start Date: {{ start_date }}</h6>
-    <h6 class="text">End Date: {{ end_date }}</h6>
-    <h6 class="text">Date Added: {{ added }}</h6>
-    <h6 class="text">Date Started: {{ started }}</h6>
-    <h6 class="text">Open-Meteo API Url: {{ url_to_use }}</h6>
+    <h6 class="text">Data Source: {{ measurement }}</h6>
+    <h6 class="text">Start Date: {{ start_date }} &  End Date: {{ end_date }}</h6>
     <form method="POST" action="/export_csv" style="display: inline-block;">
-        <input type="hidden" name="api_url" value="{{ api_url }}">
-        <input type="hidden" name="url_to_use" value="{{ url_to_use }}">
-        <input type="hidden" name="city_name" value="{{ selected_city }}">
+      {% for field, df in dfs.items() %}
+        {% set csv_data = df.to_csv(index=False) %}
+        <input type="hidden" name="dfs[]" value="{{ csv_data }}">
+        <input type="hidden" name="fields[]" value="{{ field }}">
+        <input type="hidden" name="city" value="{{ selected_city }}">
         <input type="hidden" name="coordinates" value="{{ city_coordinates }}">
-        <input type="hidden" name="measurement" value="{{ selected_sources }}">
-        <input type="hidden" name="start_date" value="{{ start_date }}">
-        <input type="hidden" name="end_date" value="{{ end_date }}">
-        <input type="hidden" name="added" value="{{ added }}">
-        <input type="hidden" name="started" value="{{ started }}">
-        <button type="submit" class="btn btn-primary">Export to CSV</button>
+        <input type="hidden" name="measurement" value="{{ measurement }}">
+      {% endfor %}
+      <button type="submit" class="btn btn-primary">Export to CSV</button>
     </form>
     <form method="POST" action="/export_json" style="display: inline-block;">
-        <input type="hidden" name="api_url" value="{{ api_url }}">
-        <input type="hidden" name="url_to_use" value="{{ url_to_use }}">
+      {% for field, df in dfs.items() %}
+        {% set csv_data = df.to_csv(index=False) %}
+        <input type="hidden" name="dfs[]" value="{{ csv_data }}">
+        <input type="hidden" name="fields[]" value="{{ field }}">
+        <input type="hidden" name="city" value="{{ selected_city }}">
         <input type="hidden" name="coordinates" value="{{ city_coordinates }}">
-        <button type="submit" class="btn btn-primary">Export to JSON</button>
+        <input type="hidden" name="measurement" value="{{ measurement }}">
+      {% endfor %}
+      <button type="submit" class="btn btn-primary">Export to JSON</button>
     </form>
     </div>
   </div>
-    <br><br>
 
+  <br><br>
 
-  </div>
+    <div style="padding:15px" class="col border border-secondary rounded data-box">
+      <div style="margin-top:5px" class="table-responsive rounded">
+        <h5 class="text">Data Tables:</h5>
+        <br>
+        {% for field, df in dfs.items() %}
+        <h6 class="text">Table: {{ field }}</h6>
+            <table style="margin-top:15px" class="table table-hover table-bordered border-primary" id="data_table">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Value</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for index, row in df.iterrows() %}
+                        {% if loop.index <= 15 %}
+                            <tr>
+                                <td>{{ row['_time'] }}</td>
+                                <td>{{ row['_value'] }}</td>
+                            </tr>
+                        {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% endfor %}
+        {% endif %}
+      </div>
+    </div>
 
 
     <footer class="container py-5 pt-4 my-md-5 pt-md-5">
@@ -183,22 +202,6 @@
         </div>
       </div>
     </footer>
-
-    <script>
-      function updateCityName() {
-        var cityElement = document.getElementById("city");
-        var selectedCityElement = cityElement.options[cityElement.selectedIndex];
-        
-        var cityName = selectedCityElement.getAttribute("data-name");
-        
-        document.getElementById("city_name").value = cityName;
-      }
-
-      document.addEventListener("DOMContentLoaded", function() {
-        updateCityName();
-      });
-
-    </script>
 
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js" integrity="sha384-I7E8VVD/ismYTF4hNIPjVp/Zjvgyol6VFvRkX/vR+Vc4jQkC+hVqc2pM8ODewa9r" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.min.js" integrity="sha384-fbbOQedDUMZZ5KreZpsbe1LCZPVmfTnH7ois6mU1QK+m14rQ1l2bGBq41eYeM/fS" crossorigin="anonymous"></script>

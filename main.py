@@ -1,19 +1,33 @@
-from flask import Flask, render_template, request, redirect, g, send_file, flash as flash_message
+from flask import Flask, session, render_template, request, redirect, url_for, g, send_file, jsonify, flash as flash_message
 from flask_mysqldb import MySQL
+from werkzeug.utils import url_quote
 import pandas as pd
-from datetime import datetime
+import plotly.express as px
+import random 
+from bokeh.plotting import figure
+from bokeh.embed import components
+from datetime import datetime, timedelta
 import requests
 import os
 import re
 import csv
+from collections import OrderedDict
 import json
 from io import StringIO
 from dotenv import  load_dotenv
+from influxdb_client import InfluxDBClient
 
 app = Flask(__name__)
 
 load_dotenv()
 
+# InfluxDB variables
+influx_bucket = str(os.getenv('INFLUXDB_BUCKET'))
+influx_org = str(os.getenv('INFLUXDB_ORG'))
+influx_token = str(os.getenv('INFLUX_TOKEN'))
+influx_url = str(os.getenv('INFLUXDB_HOST'))
+
+# SQL variables
 app.config['MYSQL_HOST'] = str(os.getenv('MYSQL_HOST'))
 app.config['MYSQL_USER'] = str(os.getenv('MYSQL_USER'))
 app.config['MYSQL_PASSWORD'] = str(os.getenv('MYSQL_PASSWORD'))
@@ -67,17 +81,45 @@ def validate_and_normalize_coord(d: float) -> float:
     else:
         return None
 
-def fetch_cities_from_database():
+def fetch_cities_from_database(city_id=None):
     cur = get_db().cursor()
-    cur.execute("SELECT name, lat, lon FROM cities")
-    cities = cur.fetchall()
+    
+    if city_id:
+        cur.execute("SELECT city_id, name, lat, lon, added, started FROM cities WHERE city_id = %s", (city_id,))
+        city = cur.fetchone()
+        cur.close()
+        return city
+    else:
+        cur.execute("SELECT city_id, name, lat, lon, added, started FROM cities")
+        cities = cur.fetchall()
+        cur.close()
+        return cities
+
+
+def fetch_query_urls_from_database(city_id):
+    conn = get_db()
+    cur = conn.cursor()
+    query = "SELECT daily, hourly, icon, icon_15, gfs, meteofrance FROM query_urls WHERE city_id=%s"
+    cur.execute(query, (city_id,))
+    row = cur.fetchone()
     cur.close()
-    return cities
+    
+    if row is None:
+        return {}
+    
+    return {
+        "daily_forecast": row[0],
+        "hourly_forecast": row[1],
+        "icon_forecast": row[2],
+        "icon_15_forecast": row[3],
+        "gfs_forecast": row[4],
+        "meteofrance_forecast": row[5]
+    }
 
 
-def fetch_coordinates_from_database(selected_city):
+def fetch_coordinates_from_database(city_id):
     cur = get_db().cursor()
-    cur.execute("SELECT lon, lat FROM cities WHERE name = %s", (selected_city,))
+    cur.execute("SELECT lon, lat FROM cities WHERE city_id=%s", (city_id,))
     coordinates = cur.fetchone()
     cur.close()
     return coordinates
@@ -85,18 +127,16 @@ def fetch_coordinates_from_database(selected_city):
 def generate_query_api_url(city_coordinates, selected_sources, start_date, end_date):
     city_lon, city_lat = city_coordinates
     api_base_url = str(os.getenv('API_BASE_URL'))
-    api_url = f'{api_base_url}api/influx/query?source={",".join(selected_sources)}&coordinates=({city_lat}, {city_lon})&start_date={start_date}&end_date={end_date}'
+    api_url = f'{api_base_url}api/influx/query?source={(selected_sources)}&coordinates=({city_lat}, {city_lon})&start_date={start_date}&end_date={end_date}'
 
     return api_url
 
 def generate_data_api_url(city_coordinates, selected_sources, start_date, end_date):
     city_lon, city_lat = city_coordinates
     api_base_url = str(os.getenv('API_BASE_URL'))
-    api_url = f'{api_base_url}api/v1/query?source={",".join(selected_sources)}&coordinates=({city_lat}, {city_lon})&start_date={start_date}&end_date={end_date}'
+    api_url = f'{api_base_url}api/v1/query?source={(selected_sources)}&coordinates=({city_lat}, {city_lon})&start_date={start_date}&end_date={end_date}'
 
     return api_url
-
-
 
 @app.route('/', methods=['GET', 'POST'])
 def home():
@@ -110,33 +150,138 @@ def docs():
     return render_template('docs.html', api_base_url=api_base_url)
 
 
+def get_random_color():
+    return 'rgba({}, {}, {}, 1)'.format(random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
 
-@app.route('/api', methods=['GET', 'POST'])
-def data():
+@app.route('/data_charts', methods=['GET', 'POST'])
+def data_charts():
     cities = fetch_cities_from_database()
 
     if request.method == 'POST':
         # get data from the form
-        selected_city = request.form.get('city')
-        selected_sources = request.form.getlist('sources')
+        selected_city = request.form.get('city_name')
+        selected_sources = request.form.get('sources')
         start_date = request.form.get('start_date')
         end_date = request.form.get('end_date')
+        selected_city_id = int(request.form.get('city_id'))
+
+        # Diagnostic Print
+        print(f"Selected City: {selected_city}, Data Source: {selected_sources}, Start Date: {start_date}, End Date: {end_date}")
+
+        # convert to datetime
+        start_date_dt = datetime.strptime(start_date, '%Y-%m-%d')
+        end_date_dt = datetime.strptime(end_date, '%Y-%m-%d')
+        
+        # calculate the difference in days
+        day_difference = (end_date_dt - start_date_dt).days
 
         # fetch the coordinates for the selected city from the database
-        city_coordinates = fetch_coordinates_from_database(selected_city)
+        city_coordinates = fetch_coordinates_from_database(selected_city_id)
 
         # combine the information into an API URL
         query_url = generate_query_api_url(city_coordinates, selected_sources, start_date, end_date)
         query_api_response = requests.get(query_url).json()
 
-        api_url = generate_data_api_url(city_coordinates, selected_sources, start_date, end_date)
-        data_api_response = requests.get(api_url).json()
+        # Diagnostic Print
+        print(f"API Response Length: {len(query_api_response)}")
 
         dfs = {}
 
+        if day_difference > 10:
+            print("Error: Date range is more than 10 days")
+            # Using flash to show error messages to user, but you can handle this in another way.
+            flash_message('Date range is more than 10 days', 'error')
+            return render_template('data_charts.html', cities=cities)
+
         if not query_api_response:
-            return render_template('no_data.html', cities=cities, api_url=api_url, city_coordinates=city_coordinates, \
-                                    start_date=start_date, end_date=end_date, selected_city=selected_city, selected_sources=selected_sources)
+            print("Error: There is no data available for the selected date range")
+            flash_message('There is no data available for the selected date range', 'error')
+            return render_template('data_charts.html', cities=cities)
+
+        for data in query_api_response:
+            records = data['records']
+            for record in records:
+                field = record['values']['_field']
+                values = {
+                    '_time': record['values']['_time'][:16],
+                    '_value': str(record['values']['_value'])[:6]
+                }
+                if field not in dfs:
+                    dfs[field] = pd.DataFrame()
+                df = pd.DataFrame(values, index=[0])
+                dfs[field] = pd.concat([dfs[field], df], ignore_index=True)
+
+        # Convert dfs into a single combined dataset for Chart.js
+        labels = list(dfs.values())[0]['_time'].tolist()  # Assuming all dfs have same _time values
+        datasets = []
+
+        color_index = 0
+        for key, field, df in dfs.items():
+            datasets.append({
+                'label': field,
+                'data': df['_value'].tolist(),
+                'borderColor': get_random_color(),
+                'yAxisID': 'y-axis-' + key,
+                'fill': False
+            })
+
+        chart_data = {
+            'labels': labels,
+            'datasets': datasets
+        }
+
+        # Diagnostic Print
+        print(f"Chart Data: {chart_data}")
+
+        session['chart_data'] = chart_data
+        return render_template(
+            'data_charts.html', 
+            cities=cities,
+            chart_data=chart_data, 
+            selected_city=selected_city,
+            city_coordinates=city_coordinates,
+            measurement=selected_sources,
+            start_date=start_date,
+            end_date=end_date
+        )
+
+
+    return render_template('data_charts.html', cities=cities)
+
+
+@app.route('/data_tables', methods=['GET', 'POST'])
+def data_tables():
+    cities = fetch_cities_from_database()
+
+    if request.method == 'POST':
+        # get data from the form
+        selected_city = request.form.get('city_name')
+        selected_sources = request.form.get('sources')
+        start_date = request.form.get('start_date')
+        end_date = request.form.get('end_date')
+        selected_city_id = int(request.form.get('city_id'))
+
+        # convert to datetime
+        start_date_dt = datetime.strptime(start_date, '%Y-%m-%d')
+        end_date_dt = datetime.strptime(end_date, '%Y-%m-%d')
+        
+        # calculate the difference in days
+        day_difference = (end_date_dt - start_date_dt).days
+
+        # fetch the coordinates for the selected city from the database
+        city_coordinates = fetch_coordinates_from_database(selected_city_id)
+
+        # combine the information into an API URL
+        query_url = generate_query_api_url(city_coordinates, selected_sources, start_date, end_date)
+        query_api_response = requests.get(query_url).json()
+
+        dfs = {}
+
+        if day_difference > 10:
+            return jsonify({'error': 'Date range is more than 10 days'})
+        
+        if not query_api_response:
+            return jsonify({'error': 'There is no data available for the selected date range'})
 
         for data in query_api_response:
 
@@ -156,91 +301,138 @@ def data():
                 df = pd.DataFrame(values, index=[0])
                 dfs[field] = pd.concat([dfs[field], df], ignore_index=True)
 
+        return jsonify({
+            'template': render_template('data_tables.html', cities=cities, dfs=dfs,
+                                        city_coordinates=city_coordinates, start_date=start_date, 
+                                        end_date=end_date, selected_city=selected_city, 
+                                        selected_sources=selected_sources, 
+                                        measurement=query_api_response[0]['records'][0]['values']['_measurement'])
+        }) 
 
-        return render_template('api.html', cities=cities, api_url=api_url, data_api_response=data_api_response, dfs=dfs, \
-                            city_coordinates=city_coordinates, start_date=start_date, end_date=end_date, selected_city=selected_city, \
-                            selected_sources=selected_sources, measurement=query_api_response[0]['records'][0]['values']['_measurement'])
+    return render_template('data_tables.html', cities=cities)
+
+
+
+
+@app.route('/api', methods=['GET', 'POST'])
+def data():
+    cities = fetch_cities_from_database()
+
+    if request.method == 'POST':
+        # get data from the form
+        selected_city = request.form.get('city_name')
+        selected_sources = request.form.get('sources')
+        start_date = request.form.get('start_date')
+        end_date = request.form.get('end_date')
+        selected_city_id = int(request.form.get('city_id'))
+
+        # Fetch detailed city info, including "started" and "added", for the selected city
+        city_details = fetch_cities_from_database(selected_city_id)
+        started = city_details[5]
+        added = city_details[4]
+
+        # fetch the coordinates for the selected city from the database
+        city_coordinates = fetch_coordinates_from_database(selected_city_id)
+
+        # combine the information into an API URL
+        api_url = generate_data_api_url(city_coordinates, selected_sources, start_date, end_date)
+
+        weather_query_urls = fetch_query_urls_from_database(selected_city_id)
+        url_to_use = weather_query_urls.get(selected_sources, None)
+
+        if not api_url:
+            return render_template('no_data.html', cities=cities, api_url=api_url, city_coordinates=city_coordinates, 
+                                   url_to_use=url_to_use, start_date=start_date, end_date=end_date, selected_city=selected_city, 
+                                   selected_sources=selected_sources, started=started, added=added)
+            
+        return render_template('api.html', cities=cities, api_url=api_url, url_to_use=url_to_use, city_coordinates=city_coordinates,
+                               start_date=start_date, end_date=end_date, selected_city=selected_city, selected_sources=selected_sources,
+                               started=started, added=added)
 
     return render_template('api.html', cities=cities)
 
 
-
 @app.route('/export_csv', methods=['POST'])
 def export_csv():
-    # get data from the form
-    data = request.form.getlist('dfs[]')
-    fields = request.form.getlist('fields[]')
-    city = request.form.get('city')
-    coordinates = request.form.get('coordinates')
+    api_url = request.form.get('api_url')
     measurement = request.form.get('measurement')
-
-    merged_df = pd.DataFrame()
-
-    for csv_data, field_name in zip(data, fields):
-
-        df = pd.read_csv(StringIO(csv_data))
-        df.insert(0, '_field', field_name)
-
-        merged_df = pd.concat([merged_df, df], ignore_index=True)
-
-    # create filename with the city and the current timestamp
+    coordinates = request.form.get('coordinates')
+    url_to_use = request.form.get('url_to_use')
+    selected_city = request.form.get('selected_city')
+    start_date = request.form.get('start_date')
+    end_date = request.form.get('end_date')
+    added = request.form.get('added')
+    started = request.form.get('started')
+    
+    response = requests.get(api_url)
+    if response.status_code != 200:
+        return 'Failed to retrieve data', 500
+    
+    api_data = response.json()
+    
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-    filename = f"data_export__for_{city}_at_{timestamp}.csv"
-
-    # add new rows with info at the beginning
+    filename = f"data_export__for_{coordinates}_at_{timestamp}.csv"
+    
     new_rows = [
-        ['City:', city, ''],
+        ['API url:', api_url, ''],
+        ['Open-Meteo url:', url_to_use, ''],
+        ['City:', selected_city, ''],
         ['Coordinates:', coordinates, ''],
-        ['Data_Source:', measurement, '']
+        ['Data_Source:', measurement, ''],
+        ['Start:', start_date, ''],
+        ['End:', end_date, ''],
+        ['Added:', added, ''],
+        ['Started:', started, '']
     ]
-
-    # export the merged DataFrame to a CSV file
+    
     with open(filename, 'w', newline='') as file:
         writer = csv.writer(file)
         writer.writerows(new_rows)
-        merged_df.to_csv(file, index=False)
+        
+        times = api_data.get('time', [])
+        results = api_data.get('results', {})
+        
+        if times and results:
 
-    # send the file
+            header = ['Time'] + list(results.keys())
+            writer.writerow(header)
+            
+            for i, time in enumerate(times):
+                row = [time]
+                for key, measurement in results.items():
+                    values = measurement.get('value', [])
+                    row.append(values[i] if i < len(values) else '')
+                writer.writerow(row)
+                
     return send_file(filename, as_attachment=True)
 
 
 @app.route('/export_json', methods=['POST'])
 def export_json():
-    # get data from the form
-    data = request.form.getlist('dfs[]')
-    fields = request.form.getlist('fields[]')
-    city = request.form.get('city')
+    api_url = request.form.get('api_url')
     coordinates = request.form.get('coordinates')
-    measurement = request.form.get('measurement')
+    url_to_use = request.form.get('url_to_use')
+    
+    response = requests.get(api_url)
+    
+    if response.status_code != 200:
+        return 'Failed to retrieve data', 500
+    
+    api_data = response.json()
 
-    merged_df = pd.DataFrame()
-
-    for csv_data, field_name in zip(data, fields):
-
-        df = pd.read_csv(StringIO(csv_data))
-        df.insert(0, '_field', field_name)
-
-        merged_df = pd.concat([merged_df, df], ignore_index=True)
-
-    # create filename with the city and the current timestamp
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-    filename_json = f"data_export__for_{city}_at_{timestamp}.json"
+    filename = f"data_export__for_{coordinates}_at_{timestamp}.json"
 
-    # add new rows with info at the beginning
-    new_rows = [
-        ['City:', city],
-        ['Coordinates:', coordinates],
-        ['Data_Source:', measurement]
-    ]
+    export_data = {
+        'API url': api_url,
+        'Open-Meteo url': url_to_use,
+        'API Data': api_data
+    }
 
-    # export the merged DataFrame to a JSON file
-    merged_json = merged_df.to_json(orient='records')
-
-    with open(filename_json, 'w') as file:
-        file.write(json.dumps(new_rows + json.loads(merged_json), indent=4))
-
-    # send the file
-    return send_file(filename_json, as_attachment=True)
+    with open(filename, 'w') as file:
+        file.write(json.dumps(export_data, indent=4)) 
+    
+    return send_file(filename, as_attachment=True)
 
 
 
@@ -270,6 +462,11 @@ def add_city():
     icon_15 = request.form['icon_15']
     gfs = request.form['gfs']
     meteofrance = request.form['meteofrance']
+    comment = request.form['comment']
+
+    current_date = datetime.now().date()
+    next_day_date = current_date + timedelta(days=1)
+
 
     if city_exists(city):
         flash_message(f'{city} is already on the list of cities.')
@@ -295,8 +492,8 @@ def add_city():
         lon_valid = validate_and_normalize_coord(lon)
 
         with get_db().cursor() as cursor:
-            query = "INSERT INTO cities (name, lat, lon, country, country_code, daily, hourly, icon, icon_15, gfs, meteofrance) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
-            cursor.execute(query, (city, lat_valid, lon_valid, country, country_code, daily, hourly, icon, icon_15, gfs, meteofrance))
+            query = "INSERT INTO cities (name, lat, lon, country, country_code, added, started, daily, hourly , icon, icon_15, gfs, meteofrance, comment) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+            cursor.execute(query, (city, lat_valid, lon_valid, country, country_code, current_date, next_day_date, daily, hourly , icon, icon_15, gfs, meteofrance, comment))
         get_db().commit()
 
         flash_message(f'{city} has been added to the list. The closest coordinates are {lat_valid} & {lon_valid}')
@@ -312,6 +509,10 @@ def add_city_coords():
     icon_15 = request.form['icon_15']
     gfs = request.form['gfs']
     meteofrance = request.form['meteofrance']
+    comment = request.form['comment']
+
+    current_date = datetime.now().date()
+    next_day_date = current_date + timedelta(days=1)
 
     lat_valid = validate_and_normalize_coord(lat)
     lon_valid = validate_and_normalize_coord(lon)
@@ -351,15 +552,86 @@ def add_city_coords():
 
 
         with get_db().cursor() as cursor:
-            query = "INSERT INTO cities (name, lat, lon, country, country_code, daily, hourly, icon, icon_15, gfs, meteofrance) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
-            cursor.execute(query, (city, lat_valid, lon_valid, country, country_code, daily, hourly, icon, icon_15, gfs, meteofrance))
+            query = "INSERT INTO cities (name, lat, lon, country, country_code, added, started, daily, hourly , icon, icon_15, gfs, meteofrance, comment) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+            cursor.execute(query, (city, lat_valid, lon_valid, country, country_code, current_date, next_day_date, daily, hourly , icon, icon_15, gfs, meteofrance, comment))
         get_db().commit()
 
         flash_message(f'{lat_valid} & {lon_valid} has been added to the list! The closest city is {city}.')
     return redirect(('/cities'))
 
+
+@app.route('/toggle_active/<int:city_id>/<int:active>', methods=['GET'])
+def toggle_active(city_id, active):
+    cur = mysql.connection.cursor()
+    if active == 1:
+        # active city set the started column
+        cur.execute("UPDATE cities SET active = %s, started = %s WHERE city_id = %s", 
+                    (active, datetime.now().date() + timedelta(days=1), city_id))
+        flash_message('City has been activated successfully!')
+    else:
+        # deactivating  city only change active column
+        cur.execute("UPDATE cities SET active = %s WHERE city_id = %s", (active, city_id))
+        flash_message('City has been deactivated successfully!')
+        
+    mysql.connection.commit()
+    cur.close()
+    
+    return redirect(url_for('cities'))
+
+
 @app.route('/cities/delete', methods=['POST'])
 def delete():
+    city_id = request.form['id']
+    cur = mysql.connection.cursor()
+
+    cur.execute("SELECT lat, lon FROM cities WHERE city_id = %s", (city_id,))
+    city = cur.fetchone()
+    
+    if not city:
+        flash_message('City not found.')
+        return redirect('/cities')
+    
+    lat, lon = city
+    coordinates = f'({lat}, {lon})'
+    
+    # delete weather data from influxdb
+    client = InfluxDBClient(url=influx_url, token=influx_token)
+
+    try:
+        delete_api = client.delete_api()
+        
+        # define start date and stop date
+        start = "1970-01-01T00:00:00Z"
+        stop = (datetime.utcnow() + timedelta(days=3)).isoformat() + "Z"
+        
+        # define coordinates for deletion and delete data
+        predicate = f'coordinates="{coordinates}"'
+    
+        delete_api.delete(start, stop, predicate, influx_bucket, influx_org)
+
+    except Exception as e:
+        flash_message(f'Error deleting data from InfluxDB: {str(e)}')
+
+    finally:
+        client.__del__()
+
+    # delete city data drom sql
+    try:
+        cur.execute("DELETE FROM cities WHERE city_id = %s", (city_id,))
+        mysql.connection.commit()
+        flash_message(f'Location data for {city} and ALL related weather data from InfluxDB have been removed.')
+        
+    except Exception as e:
+        flash_message(f'Error deleting city from SQL: {str(e)}')
+        
+    finally:
+        cur.close()
+
+    return redirect('/cities')
+
+
+@app.route('/cities/remove', methods=['POST'])
+def remove():
     id = request.form['id']
     cur = mysql.connection.cursor()
     cur.execute("DELETE FROM cities WHERE city_id = %s", (id,))
@@ -385,4 +657,4 @@ def search():
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=5000, debug=True)
