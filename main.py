@@ -2,16 +2,12 @@ from flask import Flask, session, render_template, request, redirect, url_for, g
 from flask_mysqldb import MySQL
 from werkzeug.utils import url_quote
 import pandas as pd
-import plotly.express as px
-import random 
-from bokeh.plotting import figure
-from bokeh.embed import components
+import random
 from datetime import datetime, timedelta
 import requests
 import os
 import re
 import csv
-from collections import OrderedDict
 import json
 from io import StringIO
 from dotenv import  load_dotenv
@@ -85,15 +81,40 @@ def fetch_cities_from_database(city_id=None):
     cur = get_db().cursor()
     
     if city_id:
-        cur.execute("SELECT city_id, name, lat, lon, added, started FROM cities WHERE city_id = %s", (city_id,))
+        cur.execute("SELECT city_id, name, lat, lon, added, started, horizon, last_hit FROM cities WHERE city_id = %s", (city_id,))
         city = cur.fetchone()
         cur.close()
         return city
     else:
-        cur.execute("SELECT city_id, name, lat, lon, added, started FROM cities")
+        cur.execute("SELECT city_id, name, lat, lon, added, started, horizon, last_hit FROM cities")
         cities = cur.fetchall()
         cur.close()
         return cities
+
+def retrieve_city_data():
+    cur = get_db().cursor()
+
+    cur.execute("SELECT city_id, active, name, lat, lon, tz, country, country_code, added, started, daily, hourly , icon, icon_15, gfs, meteofrance, horizon, comment, last_hit FROM cities")
+    city_data = cur.fetchall()
+    cur.close()
+    return city_data    
+
+def fetch_sources_for_city(city_id):
+    cur = get_db().cursor()
+    cur.execute("SELECT daily, hourly, icon, icon_15, gfs, meteofrance FROM cities WHERE city_id = %s", (city_id,))
+    city = cur.fetchone()
+    cur.close()
+    
+    sources = {
+        "daily_forecast": city[0],
+        "hourly_forecast": city[1],
+        "icon_forecast": city[2],
+        "icon_15_forecast": city[3],
+        "gfs_forecast": city[4],
+        "meteofrance_forecast": city[5]
+    }
+    
+    return sources
 
 
 def fetch_query_urls_from_database(city_id):
@@ -116,27 +137,148 @@ def fetch_query_urls_from_database(city_id):
         "meteofrance_forecast": row[5]
     }
 
+def fetch_parameters_for_source(source_name):
+    conn = get_db()
+    cur = conn.cursor()
+    query = "SELECT parameter, units FROM parameters WHERE source=%s"
+    cur.execute(query, (source_name,))
+    
+    results = cur.fetchall()
+    cur.close()
+    
+    return results
+
+def generate_parameters_checkboxes(source_name):
+    parameters = fetch_parameters_for_source(source_name)
+    html = "<div class='parameters-section'>"
+    
+    for parameter, units in parameters:
+        checkbox_html = f"""
+        <div class='parameter-item'>
+            <input type='checkbox' name='parameters' value='{parameter}' id='{parameter}' />
+            <label for='{parameter}'>{parameter} ({units})</label>
+        </div>
+        """
+        html += checkbox_html
+
+    html += "</div>"
+    return html
+
 
 def fetch_coordinates_from_database(city_id):
     cur = get_db().cursor()
-    cur.execute("SELECT lon, lat FROM cities WHERE city_id=%s", (city_id,))
+    cur.execute("SELECT lat, lon FROM cities WHERE city_id=%s", (city_id,))
     coordinates = cur.fetchone()
     cur.close()
     return coordinates
 
 def generate_query_api_url(city_coordinates, selected_sources, start_date, end_date):
-    city_lon, city_lat = city_coordinates
+    city_lat, city_lon = city_coordinates
     api_base_url = str(os.getenv('API_BASE_URL'))
     api_url = f'{api_base_url}api/influx/query?source={(selected_sources)}&coordinates=({city_lat}, {city_lon})&start_date={start_date}&end_date={end_date}'
 
     return api_url
 
-def generate_data_api_url(city_coordinates, selected_sources, start_date, end_date):
-    city_lon, city_lat = city_coordinates
+def generate_data_api_url(city_coordinates, selected_sources, start_date, end_date, selected_parameters=[]):
+    city_lat, city_lon = city_coordinates
     api_base_url = str(os.getenv('API_BASE_URL'))
-    api_url = f'{api_base_url}api/v1/query?source={(selected_sources)}&coordinates=({city_lat}, {city_lon})&start_date={start_date}&end_date={end_date}'
+    
+    parameters_string = ""
+    if selected_parameters:
+
+        parameters_string = "&fields=" + ",".join(selected_parameters)
+
+    api_url = f'{api_base_url}api/v1/query?source={(selected_sources)}&coordinates=({city_lat}, {city_lon})&start_date={start_date}&end_date={end_date}{parameters_string}'
 
     return api_url
+
+def store_query_urls(city_data):
+    try:
+        cur = get_db().cursor()
+        
+        # loop through each city and store query URLs
+        for row in city_data:
+            city_id, _, _, lat, lon, _, _, _, _, _, daily, hourly, icon, icon_15, gfs, meteofrance, _, _, _ = row
+            
+            # check if an entry already exists
+            cur.execute("SELECT 1 FROM query_urls WHERE city_id = %s", (city_id,))
+            if cur.fetchone():
+                continue
+            
+            daily_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&daily=temperature_2m_max,temperature_2m_min,windspeed_10m_max,winddirection_10m_dominant,shortwave_radiation_sum&timezone=auto" if daily == 1 else None
+            hourly_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&hourly=temperature_2m,relativehumidity_2m,windspeed_10m,windspeed_80m,windspeed_120m,windspeed_180m,winddirection_10m,winddirection_80m,winddirection_120m,winddirection_180m,windgusts_10m,temperature_80m,temperature_120m,temperature_180m,shortwave_radiation,direct_radiation,diffuse_radiation&forecast_days=2&timezone=auto" if hourly == 1 else None
+            icon_url = f"https://api.open-meteo.com/v1/dwd-icon?latitude={lat}&longitude={lon}&hourly=temperature_2m,relativehumidity_2m,windspeed_10m,windspeed_80m,windspeed_120m,windspeed_180m,winddirection_10m,winddirection_80m,winddirection_120m,winddirection_180m,windgusts_10m,temperature_80m,temperature_120m,temperature_180m,shortwave_radiation,direct_radiation,diffuse_radiation,direct_normal_irradiance,terrestrial_radiation&timezone=auto" if icon == 1 else None
+            icon_15_url = f"https://api.open-meteo.com/v1/dwd-icon?latitude={lat}&longitude={lon}&minutely_15=shortwave_radiation,direct_radiation,diffuse_radiation,direct_normal_irradiance,terrestrial_radiation&timezone=auto" if icon_15 == 1 else None
+            gfs_url = f"https://api.open-meteo.com/v1/gfs?latitude={lat}&longitude={lon}&hourly=temperature_2m,relativehumidity_2m,windspeed_10m,windspeed_80m,winddirection_10m,winddirection_80m,windgusts_10m,shortwave_radiation,direct_radiation,diffuse_radiation,direct_normal_irradiance,terrestrial_radiation&forecast_days=2&timezone=auto" if gfs == 1 else None
+            meteofrance_url = f"https://api.open-meteo.com/v1/meteofrance?latitude={lat}&longitude={lon}&hourly=temperature_2m,relativehumidity_2m,windspeed_10m,winddirection_10m,windgusts_10m,shortwave_radiation,direct_radiation,diffuse_radiation,direct_normal_irradiance,terrestrial_radiation&forecast_days=2&timezone=auto" if meteofrance == 1 else None
+            
+            insert_query = """INSERT INTO query_urls(city_id, daily, hourly, icon, icon_15, gfs, meteofrance) VALUES (%s, %s, %s, %s, %s, %s, %s)"""
+            values = (city_id, daily_url, hourly_url, icon_url, icon_15_url, gfs_url, meteofrance_url)
+
+            
+            # execute the query
+            cur.execute(insert_query, values)
+            get_db().commit()
+
+    except Exception as e:
+        print("Error while connecting to MySQL", e)
+    finally:
+        # close connetction
+        cur.close()
+
+def get_timezone(lat, lon):
+    # call open-meteo to get the timezone offset
+    url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&hourly=temperature_2m&timezone=auto&forecast_days=1"
+    response = requests.get(url)
+    response_data = response.json()
+    return response_data['utc_offset_seconds']
+
+def store_timezones(tz_data):
+
+    cur = get_db().cursor()
+
+    # loop through each city to fetch and store timezones
+    for row in tz_data:
+        city_id, _, _, lat, lon, _, _, _, _, _, _, _, _, _, _, _, _, _, _ = row
+
+        # check if tz already exists
+        cur.execute("SELECT tz FROM cities WHERE city_id = %s", (city_id,))
+        if cur.fetchone()[0]:  # If timezone already exists, skip to the next iteration
+            continue
+
+        timezone = get_timezone(lat, lon)
+
+        # update the tz
+        cur.execute("UPDATE cities SET tz = %s WHERE city_id = %s", (timezone, city_id))
+        get_db().commit()
+
+    cur.close()
+
+def add_last_hit(lat, lon):
+
+    cursor = get_db().cursor()
+
+    try:
+        ten_days_ago = datetime.today().date() - timedelta(days=10)
+        update_query = "UPDATE cities SET last_hit = %s WHERE lat = %s AND lon = %s"
+        cursor.execute(update_query, (ten_days_ago, lat, lon))
+        get_db().commit()
+    finally:
+        cursor.close()
+
+def adjust_horizon(horizon, meteofrance, icon_15):
+    """
+    Adjusts the horizon value based on the following criteria:
+    - If horizon > 1 and icon_15 == "1", return 2
+    - Else if horizon > 3 AND meteofrance == "1", return 4
+    - Otherwise, return the given horizon value
+    """
+    if horizon > 1 and icon_15 == "1":
+        return 1
+    elif horizon > 3 and meteofrance == "1":
+        return 3
+    return horizon
+
 
 @app.route('/', methods=['GET', 'POST'])
 def home():
@@ -164,9 +306,7 @@ def data_charts():
         start_date = request.form.get('start_date')
         end_date = request.form.get('end_date')
         selected_city_id = int(request.form.get('city_id'))
-
-        # Diagnostic Print
-        print(f"Selected City: {selected_city}, Data Source: {selected_sources}, Start Date: {start_date}, End Date: {end_date}")
+        selected_parameters = request.form.getlist('parameters')
 
         # convert to datetime
         start_date_dt = datetime.strptime(start_date, '%Y-%m-%d')
@@ -179,65 +319,25 @@ def data_charts():
         city_coordinates = fetch_coordinates_from_database(selected_city_id)
 
         # combine the information into an API URL
-        query_url = generate_query_api_url(city_coordinates, selected_sources, start_date, end_date)
-        query_api_response = requests.get(query_url).json()
+        api_url = generate_data_api_url(city_coordinates, selected_sources, start_date, end_date, selected_parameters)
+        response = requests.head(api_url)
 
-        # Diagnostic Print
-        print(f"API Response Length: {len(query_api_response)}")
-
-        dfs = {}
-
-        if day_difference > 10:
-            print("Error: Date range is more than 10 days")
-            # Using flash to show error messages to user, but you can handle this in another way.
-            flash_message('Date range is more than 10 days', 'error')
+        if day_difference > 90:
+            flash_message('Date range is more than 90 days', 'error')
             return render_template('data_charts.html', cities=cities)
 
-        if not query_api_response:
-            print("Error: There is no data available for the selected date range")
+        if response.status_code == 404 or response.headers.get("X-Data-Available") == "False":
             flash_message('There is no data available for the selected date range', 'error')
-            return render_template('data_charts.html', cities=cities)
+            return render_template('data_charts.html', cities=cities, data=None)
 
-        for data in query_api_response:
-            records = data['records']
-            for record in records:
-                field = record['values']['_field']
-                values = {
-                    '_time': record['values']['_time'][:16],
-                    '_value': str(record['values']['_value'])[:6]
-                }
-                if field not in dfs:
-                    dfs[field] = pd.DataFrame()
-                df = pd.DataFrame(values, index=[0])
-                dfs[field] = pd.concat([dfs[field], df], ignore_index=True)
+        query_api_response = requests.get(api_url).json()
+        print(api_url)
 
-        # Convert dfs into a single combined dataset for Chart.js
-        labels = list(dfs.values())[0]['_time'].tolist()  # Assuming all dfs have same _time values
-        datasets = []
-
-        color_index = 0
-        for key, field, df in dfs.items():
-            datasets.append({
-                'label': field,
-                'data': df['_value'].tolist(),
-                'borderColor': get_random_color(),
-                'yAxisID': 'y-axis-' + key,
-                'fill': False
-            })
-
-        chart_data = {
-            'labels': labels,
-            'datasets': datasets
-        }
-
-        # Diagnostic Print
-        print(f"Chart Data: {chart_data}")
-
-        session['chart_data'] = chart_data
         return render_template(
-            'data_charts.html', 
+            'data_charts.html',
+            data=query_api_response, 
             cities=cities,
-            chart_data=chart_data, 
+            api_url=api_url,
             selected_city=selected_city,
             city_coordinates=city_coordinates,
             measurement=selected_sources,
@@ -246,7 +346,7 @@ def data_charts():
         )
 
 
-    return render_template('data_charts.html', cities=cities)
+    return render_template('data_charts.html', cities=cities, data=None)
 
 
 @app.route('/data_tables', methods=['GET', 'POST'])
@@ -311,7 +411,28 @@ def data_tables():
 
     return render_template('data_tables.html', cities=cities)
 
+@app.route('/get_sources_for_city', methods=['GET'])
+def get_sources_for_city():
+    city_id = request.args.get('city_id')
+    sources = fetch_sources_for_city(city_id)
+    return jsonify(sources)
 
+@app.route('/get_parameters')
+def get_parameters():
+    source_name_mapping = {
+        "daily_forecast": "daily",
+        "hourly_forecast": "hourly",
+        "icon_forecast": "icon",
+        "icon_15_forecast": "icon_15",
+        "gfs_forecast": "gfs",
+        "meteofrance_forecast": "meteofrance"
+
+    }
+
+    source = request.args.get('source')
+    mapped_source = source_name_mapping.get(source, source)
+    html = generate_parameters_checkboxes(mapped_source)
+    return html
 
 
 @app.route('/api', methods=['GET', 'POST'])
@@ -325,29 +446,35 @@ def data():
         start_date = request.form.get('start_date')
         end_date = request.form.get('end_date')
         selected_city_id = int(request.form.get('city_id'))
+        selected_parameters = request.form.getlist('parameters')
 
         # Fetch detailed city info, including "started" and "added", for the selected city
         city_details = fetch_cities_from_database(selected_city_id)
         started = city_details[5]
         added = city_details[4]
+        horizon = city_details[6]
+        last_hit = city_details[7]
+
 
         # fetch the coordinates for the selected city from the database
         city_coordinates = fetch_coordinates_from_database(selected_city_id)
 
         # combine the information into an API URL
-        api_url = generate_data_api_url(city_coordinates, selected_sources, start_date, end_date)
+        api_url = generate_data_api_url(city_coordinates, selected_sources, start_date, end_date, selected_parameters)
 
         weather_query_urls = fetch_query_urls_from_database(selected_city_id)
         url_to_use = weather_query_urls.get(selected_sources, None)
 
-        if not api_url:
+        response = requests.head(api_url)
+
+        if response.status_code == 404 or response.headers.get("X-Data-Available") == "False":
             return render_template('no_data.html', cities=cities, api_url=api_url, city_coordinates=city_coordinates, 
                                    url_to_use=url_to_use, start_date=start_date, end_date=end_date, selected_city=selected_city, 
-                                   selected_sources=selected_sources, started=started, added=added)
-            
+                                   selected_sources=selected_sources, started=started, added=added, horizon=horizon, last_hit=last_hit)
+    
         return render_template('api.html', cities=cities, api_url=api_url, url_to_use=url_to_use, city_coordinates=city_coordinates,
                                start_date=start_date, end_date=end_date, selected_city=selected_city, selected_sources=selected_sources,
-                               started=started, added=added)
+                               started=started, added=added, horizon=horizon, last_hit=last_hit)
 
     return render_template('api.html', cities=cities)
 
@@ -363,6 +490,7 @@ def export_csv():
     end_date = request.form.get('end_date')
     added = request.form.get('added')
     started = request.form.get('started')
+    horizon = request.form.get('horizon')
     
     response = requests.get(api_url)
     if response.status_code != 200:
@@ -379,6 +507,7 @@ def export_csv():
         ['City:', selected_city, ''],
         ['Coordinates:', coordinates, ''],
         ['Data_Source:', measurement, ''],
+        ['Forecast Horizon:', horizon, ''],
         ['Start:', start_date, ''],
         ['End:', end_date, ''],
         ['Added:', added, ''],
@@ -463,6 +592,8 @@ def add_city():
     gfs = request.form['gfs']
     meteofrance = request.form['meteofrance']
     comment = request.form['comment']
+    horizon = int(request.form['horizon'])
+    horizon = adjust_horizon(horizon, meteofrance, icon_15)
 
     current_date = datetime.now().date()
     next_day_date = current_date + timedelta(days=1)
@@ -492,9 +623,15 @@ def add_city():
         lon_valid = validate_and_normalize_coord(lon)
 
         with get_db().cursor() as cursor:
-            query = "INSERT INTO cities (name, lat, lon, country, country_code, added, started, daily, hourly , icon, icon_15, gfs, meteofrance, comment) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
-            cursor.execute(query, (city, lat_valid, lon_valid, country, country_code, current_date, next_day_date, daily, hourly , icon, icon_15, gfs, meteofrance, comment))
+            query = "INSERT INTO cities (name, lat, lon, country, country_code, added, started, daily, hourly , icon, icon_15, gfs, meteofrance, horizon, comment) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+            cursor.execute(query, (city, lat_valid, lon_valid, country, country_code, current_date, next_day_date, daily, hourly , icon, icon_15, gfs, meteofrance, horizon, comment))
         get_db().commit()
+
+        city_data = retrieve_city_data()
+        store_query_urls(city_data)
+        tz_data = retrieve_city_data()
+        store_timezones(tz_data)
+        add_last_hit(lat_valid, lon_valid)
 
         flash_message(f'{city} has been added to the list. The closest coordinates are {lat_valid} & {lon_valid}')
     return redirect(('/cities'))
@@ -510,6 +647,8 @@ def add_city_coords():
     gfs = request.form['gfs']
     meteofrance = request.form['meteofrance']
     comment = request.form['comment']
+    horizon = int(request.form['horizon'])
+    horizon = adjust_horizon(horizon, meteofrance, icon_15)
 
     current_date = datetime.now().date()
     next_day_date = current_date + timedelta(days=1)
@@ -552,9 +691,14 @@ def add_city_coords():
 
 
         with get_db().cursor() as cursor:
-            query = "INSERT INTO cities (name, lat, lon, country, country_code, added, started, daily, hourly , icon, icon_15, gfs, meteofrance, comment) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
-            cursor.execute(query, (city, lat_valid, lon_valid, country, country_code, current_date, next_day_date, daily, hourly , icon, icon_15, gfs, meteofrance, comment))
+            query = "INSERT INTO cities (name, lat, lon, country, country_code, added, started, daily, hourly , icon, icon_15, gfs, meteofrance, horizon, comment) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+            cursor.execute(query, (city, lat_valid, lon_valid, country, country_code, current_date, next_day_date, daily, hourly , icon, icon_15, gfs, meteofrance, horizon, comment))
         get_db().commit()
+
+        city_data = retrieve_city_data()
+        store_query_urls(city_data)
+        tz_data = retrieve_city_data()
+        store_timezones(tz_data)
 
         flash_message(f'{lat_valid} & {lon_valid} has been added to the list! The closest city is {city}.')
     return redirect(('/cities'))

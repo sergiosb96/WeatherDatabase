@@ -50,6 +50,10 @@ services:
       - db
       - influxdb
     environment:
+      MYSQL_HOST: ${MYSQL_HOST}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_DB: ${MYSQL_DB}
       INFLUX_TOKEN: ${INFLUX_TOKEN}
       INFLUXDB_ORG: ${INFLUXDB_ORG}
       INFLUXDB_BUCKET: ${INFLUXDB_BUCKET}
@@ -69,3 +73,28 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - ./mydb.sql:/docker-entrypoint-initdb.d/mydb.sql
     restart: always
+
+  dagster:
+    build:
+      context: ./dagster
+      dockerfile: Dockerfile
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./dagster-data:/dagster_home
+      - ./dagster/my-dagster-project/:/my-dagster-project
+    ports:
+      - "3000:3000"
+    depends_on:
+      - db
+      - influxdb
+    environment:
+      MYSQL_HOST: ${MYSQL_HOST}
+      MYSQL_DB: ${MYSQL_DB}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      INFLUX_TOKEN: ${INFLUX_TOKEN}
+      INFLUXDB_ORG: ${INFLUXDB_ORG}
+      INFLUXDB_BUCKET: ${INFLUXDB_BUCKET}
+      INFLUXDB_HOST: ${INFLUXDB_HOST}
+      API_BASE_URL: ${API_BASE_URL}
+    restart: unless-stopped

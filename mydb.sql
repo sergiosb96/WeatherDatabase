@@ -28,7 +28,9 @@ CREATE TABLE IF NOT EXISTS `cities` (
   `icon_15` int(1) DEFAULT 0,
   `gfs` int(1) DEFAULT 0,
   `meteofrance` int(1) DEFAULT 0,
+  `horizon` int(11) DEFAULT 0,
   `comment` text DEFAULT NULL,
+  `last_hit` date DEFAULT NOT NULL,
   PRIMARY KEY (`city_id`) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 

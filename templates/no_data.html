@@ -64,7 +64,13 @@
               <a class="nav-link" href="/api/docs">API Docs</a>
             </li>
             <li class="nav-item">
-              <a class="nav-link" href="https://github.com/sergiosb96/CitiesManager" target="_blank" rel="noopener" aria-label="GitHub"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" class="navbar-nav-svg" viewBox="0 0 512 499.36" role="img"><path fill="currentColor" fill-rule="evenodd" d="M256 0C114.64 0 0 114.61 0 256c0 113.09 73.34 209 175.08 242.9 12.8 2.35 17.47-5.56 17.47-12.34 0-6.08-.22-22.18-.35-43.54-71.2 15.49-86.2-34.34-86.2-34.34-11.64-29.57-28.42-37.45-28.42-37.45-23.27-15.84 1.73-15.55 1.73-15.55 25.69 1.81 39.21 26.38 39.21 26.38 22.84 39.12 59.92 27.82 74.5 21.27 2.33-16.54 8.94-27.82 16.25-34.22-56.84-6.43-116.6-28.43-116.6-126.49 0-27.95 10-50.8 26.35-68.69-2.63-6.48-11.42-32.5 2.51-67.75 0 0 21.49-6.88 70.4 26.24a242.65 242.65 0 0 1 128.18 0c48.87-33.13 70.33-26.24 70.33-26.24 14 35.25 5.18 61.27 2.55 67.75 16.41 17.9 26.31 40.75 26.31 68.69 0 98.35-59.85 120-116.88 126.32 9.19 7.9 17.38 23.53 17.38 47.41 0 34.22-.31 61.83-.31 70.23 0 6.85 4.61 14.81 17.6 12.31C438.72 464.97 512 369.08 512 256.02 512 114.62 397.37 0 256 0z"></path></svg></a>
+              <a class="nav-link" href="/">InfluxDB</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/">Dagster</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="https://github.com/sergiosb96/WeatherDatabase" target="_blank" rel="noopener" aria-label="GitHub"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" class="navbar-nav-svg" viewBox="0 0 512 499.36" role="img"><path fill="currentColor" fill-rule="evenodd" d="M256 0C114.64 0 0 114.61 0 256c0 113.09 73.34 209 175.08 242.9 12.8 2.35 17.47-5.56 17.47-12.34 0-6.08-.22-22.18-.35-43.54-71.2 15.49-86.2-34.34-86.2-34.34-11.64-29.57-28.42-37.45-28.42-37.45-23.27-15.84 1.73-15.55 1.73-15.55 25.69 1.81 39.21 26.38 39.21 26.38 22.84 39.12 59.92 27.82 74.5 21.27 2.33-16.54 8.94-27.82 16.25-34.22-56.84-6.43-116.6-28.43-116.6-126.49 0-27.95 10-50.8 26.35-68.69-2.63-6.48-11.42-32.5 2.51-67.75 0 0 21.49-6.88 70.4 26.24a242.65 242.65 0 0 1 128.18 0c48.87-33.13 70.33-26.24 70.33-26.24 14 35.25 5.18 61.27 2.55 67.75 16.41 17.9 26.31 40.75 26.31 68.69 0 98.35-59.85 120-116.88 126.32 9.19 7.9 17.38 23.53 17.38 47.41 0 34.22-.31 61.83-.31 70.23 0 6.85 4.61 14.81 17.6 12.31C438.72 464.97 512 369.08 512 256.02 512 114.62 397.37 0 256 0z"></path></svg></a>
             </li>
           </ul>
         </div>
@@ -80,26 +86,31 @@
           <form method="POST" class="row g-2" onsubmit="return validateForm()">
             <div class="col-md-6">
               <label for="city">City:</label>
-              <select class="form-select" name="city_id" id="city">
+              <select class="form-select" name="city_id" id="city" onchange="updateCityName(); updateSourcesDropdown();">
                 {% for city in cities %}
-                    <option value="{{ city[0] }}">{{ city[1] }} (lat: {{ city[2] }}, lon: {{ city[3] }})</option>
+                  <option value="{{ city[0] }}" data-name="{{ city[1] }}">{{ city[1] }} (lat: {{ city[2] }}, lon: {{ city[3] }})</option>
                 {% endfor %}
               </select>
+              <input type="hidden" name="city_name" id="city_name" value="">
             </div>
-  
-              <br><br>
-  
-              <div class="col-md-6">
-              <label for="source">Data Source:</label>
-              <select class="form-select" name="sources" id="sources">
-                <option value="daily_forecast"> Best Available Daily</option>
-                <option value="hourly_forecast"> Best Available Hourly</option>
-                <option value="icon_forecast"> ICON Hourly</option>
-                <option value="icon_15_forecast"> ICON 15-Minutely</option>
-                <option value="gfs_forecast"> GFS Hourly</option>
-                <option value="meteofrance_forecast"> MeteoFrance Hourly</option>
-              </select>
+
+            <br><br>
+
+            <div class="col-md-6">
+            <label for="source">Data Source:</label>
+            <select class="form-select" name="sources" id="sources" onchange="updateParametersCheckboxes();">
+
+            </select>
+            </div>
+
+            <br><br>
+
+            <div class="col-md-12" name="parameters" id="parametersSection" style="display: none;">
+              <label>Parameters:</label>
+              <div name="parameters" id="parametersCheckboxes">
+                  
               </div>
+            </div>
 
             <br><br>
             <div class="col-md-6">
@@ -143,8 +154,13 @@
     <h6 class="text">City: {{ selected_city }}</h6>
     <h6 class="text">Coordinates: {{ city_coordinates }}</h6>
     <h6 class="text">Data Source: {{ selected_sources }}</h6>
+    <h6 class="text">Forecast Horizon: {{ horizon }}</h6>
     <h6 class="text">Start Date: {{ start_date }}</h6>
     <h6 class="text">End Date: {{ end_date }}</h6>
+    <h6 class="text">Date Added: {{ added }}</h6>
+    <h6 class="text">Date Started: {{ started }}</h6>
+    <h6 class="text">Date of last call: {{ last_hit }}</h6>
+    <h6 class="text">Open-Meteo API Url: {{ url_to_use }}</h6>
     <br>
     <div class="data-box">
       <h5>No Data</h5>
@@ -157,19 +173,77 @@
     <footer class="container py-5 pt-4 my-md-5 pt-md-5"><div class="row"><div class="col-6 col-md"></div>
 	  <div class="text-center pt-3"><small class="d-block text-muted">© 2022-2023 Copyright</small></div></footer>
 
-    <!-- <script>
-      function validateForm() {
-        var startDate = document.getElementById("start_date").value;
-        var endDate = document.getElementById("end_date").value;
-
-        if (!startDate || !endDate) {
-          alert("Please select both start and end dates.");
-          return false;
-        }
-
-        return true;
+    <script>
+      function updateCityName() {
+        var cityElement = document.getElementById("city");
+        var selectedCityElement = cityElement.options[cityElement.selectedIndex];
+        
+        var cityName = selectedCityElement.getAttribute("data-name");
+        
+        document.getElementById("city_name").value = cityName;
       }
-    </script> -->
+
+      document.addEventListener("DOMContentLoaded", function() {
+        updateCityName();
+      });
+
+      function updateSourcesDropdown() {
+          const cityId = document.getElementById("city").value;
+          
+          fetch(`/get_sources_for_city?city_id=${cityId}`)
+              .then(response => response.json())
+              .then(data => {
+                  const sourcesDropdown = document.getElementById("sources");
+                  sourcesDropdown.innerHTML = "";
+
+                  const sourceNames = {
+                      "daily_forecast": "Best Available Daily",
+                      "hourly_forecast": "Best Available Hourly",
+                      "icon_forecast": "ICON Hourly",
+                      "icon_15_forecast": "ICON 15-Minutely",
+                      "gfs_forecast": "GFS Hourly",
+                      "meteofrance_forecast": "MeteoFrance Hourly"
+                  }
+
+                  for (const [sourceKey, available] of Object.entries(data)) {
+                      if (available) {
+                          const option = document.createElement("option");
+                          option.value = sourceKey;
+                          option.textContent = sourceNames[sourceKey];
+                          sourcesDropdown.appendChild(option);
+                      }
+                  }
+                  updateParametersCheckboxes();
+              });
+      }
+
+      document.getElementById("city").addEventListener("change", updateSourcesDropdown);
+
+      document.addEventListener("DOMContentLoaded", function() {
+        updateSourcesDropdown();
+      });
+
+      function updateParametersCheckboxes() {
+          let source = document.getElementById('sources').value;
+
+          
+          fetch(`/get_parameters?source=${source}`)
+              .then(response => response.text()) 
+              .then(html => {
+                  let parametersDiv = document.getElementById('parametersCheckboxes');
+                  parametersDiv.innerHTML = html;
+
+
+                  let checkboxes = parametersDiv.querySelectorAll('input[type="checkbox"]');
+                  checkboxes.forEach(checkbox => {
+                      checkbox.setAttribute('name', 'parameters');
+                  });
+
+                  document.getElementById('parametersSection').style.display = 'block';
+              });
+      }
+
+    </script>
 
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js" integrity="sha384-I7E8VVD/ismYTF4hNIPjVp/Zjvgyol6VFvRkX/vR+Vc4jQkC+hVqc2pM8ODewa9r" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.min.js" integrity="sha384-fbbOQedDUMZZ5KreZpsbe1LCZPVmfTnH7ois6mU1QK+m14rQ1l2bGBq41eYeM/fS" crossorigin="anonymous"></script>

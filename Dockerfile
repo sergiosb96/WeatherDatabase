@@ -1,4 +1,4 @@
-FROM python:3.9.16-slim-buster
+FROM python:3.9.16-buster
 
 RUN apt-get update && \
     apt-get install -y default-libmysqlclient-dev libmariadb-dev gcc pkg-config && \
@@ -19,4 +19,4 @@ EXPOSE 5000
 ENV FLASK_APP=main.py
 ENV FLASK_ENV=production
 
-CMD gunicorn --config gunicorn_config.py main:app
+CMD gunicorn --bind 0.0.0.0:5000 main:app

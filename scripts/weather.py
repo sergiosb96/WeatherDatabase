@@ -40,7 +40,7 @@ def retrieve_city_data():
 
     cur = conn.cursor()
     # Query the database for city data
-    cur.execute("SELECT city_id, active, name, lat, lon, tz, country, country_code, added, started, daily, hourly , icon, icon_15, gfs, meteofrance, comment FROM cities")
+    cur.execute("SELECT city_id, active, name, lat, lon, tz, country, country_code, added, started, daily, hourly , icon, icon_15, gfs, meteofrance, horizon, comment, last_hit FROM cities")
 
     city_data = cur.fetchall()
     # Close database connections
@@ -89,6 +89,41 @@ def retrieve_tz_data():
 
     return tz_data
 
+
+def should_fetch_data(horizon, last_hit):
+    """
+    Returns True if the day difference between today and last_hit 
+    is greater than or equal to horizon. Otherwise, it returns False.
+    """
+    today = datetime.datetime.today().date()
+    days_difference = (today - last_hit).days
+
+    return days_difference >= horizon
+
+def update_last_hit(city_id):
+    """Update the 'last_hit' column for a specific city in MariaDB."""
+
+    conn = pymysql.connect(
+        user=str(os.getenv('MYSQL_USER')),
+        password=str(os.getenv('MYSQL_PASSWORD')),
+        host=str(os.getenv('MYSQL_HOST')),
+        database=str(os.getenv('MYSQL_DB'))
+    )
+    cursor = conn.cursor()
+
+    try:
+        today = datetime.datetime.today().date() 
+        update_query = "UPDATE cities SET last_hit = %s WHERE city_id = %s"
+        cursor.execute(update_query, (today, city_id))
+        conn.commit()
+    except Exception as e:
+        log_to_file(f"Error updating last_hit for city_id: {city_id} - {e}")
+    finally:
+        cursor.close()
+        conn.close()
+
+
+
 def is_it_23_local(utc_offset_seconds_str):
 
     """Returns True if it's 23:00 local time based on the stored UTC offset in seconds"""
@@ -101,17 +136,11 @@ def is_it_23_local(utc_offset_seconds_str):
     local_time = utc_now + datetime.timedelta(seconds=utc_offset_seconds)
     return local_time.hour == 23
 
-def get_timezone(lat, lon):
-    # call open-meteo to get the timezone offset
-    url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&hourly=temperature_2m&timezone=auto&forecast_days=1"
-    response = requests.get(url)
-    response_data = response.json()
-    return response_data['utc_offset_seconds']
-
 def local_offset():
     """Get the local timezone offset in hours from UTC."""
     offset_seconds = -time.altzone if time.localtime().tm_isdst else -time.timezone
     return offset_seconds / 3600
+
 
 def date_to_unixtime(date_string):
     # Specify the input date string
@@ -142,19 +171,6 @@ def time_to_unixtime(date_string):
     unix_time = int(datetime_object.timestamp())
     return unix_time
 
-def validate_and_normalize_coord(d: float) -> float:
-    # Convert input to a string if it's not already
-    if not isinstance(d, str):
-        d = str(d)
-    
-    # Check if input matches valid format
-    match = re.match(r"^(-?\d{1,3}\.\d{1,10})$", d)
-    if match:
-        # Strip extra decimal places and keep only 3 decimal places
-        normalized = f"{float(match.group(1)):.3f}"
-        return float(normalized)
-    else:
-        raise ValueError("Invalid input format. Must be in the format X.X to XXX.XXXXXXXX or -X.X to -XXX.XXXXXXX.")
 
 
 # Fetch weather data from open-meteo
@@ -164,54 +180,72 @@ def fetch_weather_data(url):
     return data
 
 # Fetch daily weather data from open-meteo
-def fetch_daily_data(lat, lon):
-    url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&daily=temperature_2m_max,temperature_2m_min,windspeed_10m_max,winddirection_10m_dominant,shortwave_radiation_sum&timezone=auto"
+def fetch_daily_data(lat, lon, horizon):
+    horizon = horizon + 1
+    url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&daily=temperature_2m_max,temperature_2m_min,windspeed_10m_max,winddirection_10m_dominant,shortwave_radiation_sum&timezone=auto&forecast_days={horizon}"
+    print(url)
     return fetch_weather_data(url)
 # Fetch hourly weather data from open-meteo
-def fetch_hourly_data(lat, lon):
-    url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&hourly=temperature_2m,relativehumidity_2m,windspeed_10m,windspeed_80m,windspeed_120m,windspeed_180m,winddirection_10m,winddirection_80m,winddirection_120m,winddirection_180m,windgusts_10m,temperature_80m,temperature_120m,temperature_180m,shortwave_radiation,direct_radiation,diffuse_radiation&forecast_days=2&timezone=auto"
+def fetch_hourly_data(lat, lon, horizon):
+    horizon = horizon + 1
+    url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&hourly=temperature_2m,relativehumidity_2m,windspeed_10m,windspeed_80m,windspeed_120m,windspeed_180m,winddirection_10m,winddirection_80m,winddirection_120m,winddirection_180m,windgusts_10m,temperature_80m,temperature_120m,temperature_180m,shortwave_radiation,direct_radiation,diffuse_radiation&forecast_days=2&timezone=auto&forecast_days={horizon}"
+    print(url)
     return fetch_weather_data(url)
 # Fetch icon hourly weather data from open-meteo
-def fetch_icon_data(lat, lon):
-    url = f"https://api.open-meteo.com/v1/dwd-icon?latitude={lat}&longitude={lon}&hourly=temperature_2m,relativehumidity_2m,windspeed_10m,windspeed_80m,windspeed_120m,windspeed_180m,winddirection_10m,winddirection_80m,winddirection_120m,winddirection_180m,windgusts_10m,temperature_80m,temperature_120m,temperature_180m,shortwave_radiation,direct_radiation,diffuse_radiation,direct_normal_irradiance,terrestrial_radiation&timezone=auto"
+def fetch_icon_data(lat, lon, horizon):
+    horizon = horizon + 1
+    url = f"https://api.open-meteo.com/v1/dwd-icon?latitude={lat}&longitude={lon}&hourly=temperature_2m,relativehumidity_2m,windspeed_10m,windspeed_80m,windspeed_120m,windspeed_180m,winddirection_10m,winddirection_80m,winddirection_120m,winddirection_180m,windgusts_10m,temperature_80m,temperature_120m,temperature_180m,shortwave_radiation,direct_radiation,diffuse_radiation,direct_normal_irradiance,terrestrial_radiation&timezone=auto&forecast_days={horizon}"
+    print(url)
     return fetch_weather_data(url)
 # Fetch icon minutely_15 weather data from open-meteo
-def fetch_icon_15_data(lat, lon):
-    url = f"https://api.open-meteo.com/v1/dwd-icon?latitude={lat}&longitude={lon}&minutely_15=shortwave_radiation,direct_radiation,diffuse_radiation,direct_normal_irradiance,terrestrial_radiation&timezone=auto"
+def fetch_icon_15_data(lat, lon, horizon):
+    horizon = horizon + 1
+    url = f"https://api.open-meteo.com/v1/dwd-icon?latitude={lat}&longitude={lon}&minutely_15=shortwave_radiation,direct_radiation,diffuse_radiation,direct_normal_irradiance,terrestrial_radiation&timezone=auto&forecast_days={horizon}"
+    print(url)
     return fetch_weather_data(url)
 # Fetch gfs hourly weather data from open-meteo
-def fetch_gfs_data(lat, lon):
-    url = f"https://api.open-meteo.com/v1/gfs?latitude={lat}&longitude={lon}&hourly=temperature_2m,relativehumidity_2m,windspeed_10m,windspeed_80m,winddirection_10m,winddirection_80m,windgusts_10m,shortwave_radiation,direct_radiation,diffuse_radiation,direct_normal_irradiance,terrestrial_radiation&forecast_days=2&timezone=auto"
+def fetch_gfs_data(lat, lon, horizon):
+    horizon = horizon + 1
+    url = f"https://api.open-meteo.com/v1/gfs?latitude={lat}&longitude={lon}&hourly=temperature_2m,relativehumidity_2m,windspeed_10m,windspeed_80m,winddirection_10m,winddirection_80m,windgusts_10m,shortwave_radiation,direct_radiation,diffuse_radiation,direct_normal_irradiance,terrestrial_radiation&forecast_days=2&timezone=auto&forecast_days={horizon}"
+    print(url)
     return fetch_weather_data(url)
 # Fetch meteofrance hourly weather data from open-meteo
-def fetch_meteofrance_data(lat, lon):
-    url = f"https://api.open-meteo.com/v1/meteofrance?latitude={lat}&longitude={lon}&hourly=temperature_2m,relativehumidity_2m,windspeed_10m,winddirection_10m,windgusts_10m,shortwave_radiation,direct_radiation,diffuse_radiation,direct_normal_irradiance,terrestrial_radiation&forecast_days=2&timezone=auto"
+def fetch_meteofrance_data(lat, lon, horizon):
+    horizon = horizon + 1
+    url = f"https://api.open-meteo.com/v1/meteofrance?latitude={lat}&longitude={lon}&hourly=temperature_2m,relativehumidity_2m,windspeed_10m,winddirection_10m,windgusts_10m,shortwave_radiation,direct_radiation,diffuse_radiation,direct_normal_irradiance,terrestrial_radiation&forecast_days=2&timezone=auto&forecast_days={horizon}"
+    print(url)
     return fetch_weather_data(url)
 
 
 # Store daily data in InfluxDB
 def store_daily_data_in_influxdb(data, lat, lon, write_api): # daily data from open-meteo
     #get data
-    dt = data['daily']['time'][1]
-    temp_min = data['daily']['temperature_2m_min'][1]
-    temp_max = data['daily']['temperature_2m_max'][1]
-    wind_max = data['daily']['windspeed_10m_max'][1]
-    wind_dir = data['daily']['winddirection_10m_dominant'][1]
-    radiation = data['daily']['shortwave_radiation_sum'][1]
+    timestamps = data["daily"]["time"][1:]
+    temp_min_s = data["daily"]["temperature_2m_min"][1:]
+    temp_max_s = data["daily"]["temperature_2m_max"][1:]
+    wind_max_s = data["daily"]["windspeed_10m_max"][1:]
+    wind_dir_s = data["daily"]["winddirection_10m_dominant"][1:]
+    radiation_s = data["daily"]["shortwave_radiation_sum"][1:]
     #add coordinates
     coordinates = lat,lon
-    #convert time to unix 
-    unix_time = date_to_unixtime(dt)
-    write_api.write(influx_bucket, influx_org, [
-        Point("daily_forecast")
-        .tag("coordinates", coordinates)
-        .field("temparature_min_C", temp_min)
-        .field("temparature_max_C", temp_max)
-        .field("shortwave_radiation_sum", radiation)
-        .field("wind_speed", wind_max)
-        .field("wind_direction", wind_dir)
-        .time(unix_time, write_precision='s')
-    ])
+
+    for timestamp_str, temp_min, temp_max, \
+        wind_max, wind_dir, radiation, \
+        in zip(timestamps, temp_min_s, temp_max_s, \
+               wind_max_s, wind_dir_s, radiation_s):
+        
+        unix_time = date_to_unixtime(timestamp_str)
+
+        write_api.write(influx_bucket, influx_org, [
+            Point("daily_forecast")
+            .tag("coordinates", coordinates)
+            .field("temparature_min_C", temp_min)
+            .field("temparature_max_C", temp_max)
+            .field("shortwave_radiation_sum", radiation)
+            .field("wind_speed", wind_max)
+            .field("wind_direction", wind_dir)
+            .time(unix_time, write_precision='s')
+        ])
 
 # Store hourly data in InfluxDB
 def store_hourly_data_in_influxdb(data2, lat, lon, write_api): # hourly data from open-meteo
@@ -280,27 +314,27 @@ def store_icon_data_in_influxdb(data3, lat, lon, write_api): # icon hourly data 
 
     coordinates = lat,lon
 
-    timestamps = data3["hourly"]["time"][24:48]
+    timestamps = data3["hourly"]["time"][24:]
 
-    temperatures = data3["hourly"]["temperature_2m"][24:48]
-    humidities = data3["hourly"]["relativehumidity_2m"][24:48]
-    windspeed_10m_s = data3["hourly"]["windspeed_10m"][24:48]
-    windspeed_80m_s = data3["hourly"]["windspeed_80m"][24:48]
-    windspeed_120m_s = data3["hourly"]["windspeed_120m"][24:48]
-    windspeed_180m_s = data3["hourly"]["windspeed_180m"][24:48]
-    winddirection_10m_s = data3["hourly"]["winddirection_10m"][24:48]
-    winddirection_80m_s = data3["hourly"]["winddirection_80m"][24:48]
-    winddirection_120m_s = data3["hourly"]["winddirection_120m"][24:48]
-    winddirection_180m_s = data3["hourly"]["winddirection_180m"][24:48]
-    windgusts_10m_s = data3["hourly"]["windgusts_10m"][24:48]
-    temperature_80m_s = data3["hourly"]["temperature_80m"][24:48]
-    temperature_120m_s = data3["hourly"]["temperature_120m"][24:48]
-    temperature_180m_s = data3["hourly"]["temperature_180m"][24:48]
-    shortwave_radiation_s = data3["hourly"]["shortwave_radiation"][24:48]
-    direct_radiation_s = data3["hourly"]["direct_radiation"][24:48]
-    diffuse_radiation_s = data3["hourly"]["diffuse_radiation"][24:49]
-    direct_normal_irradiance_s = data3["hourly"]["direct_normal_irradiance"][24:48]
-    terrestrial_radiation_s = data3["hourly"]["terrestrial_radiation"][24:48]
+    temperatures = data3["hourly"]["temperature_2m"][24:]
+    humidities = data3["hourly"]["relativehumidity_2m"][24:]
+    windspeed_10m_s = data3["hourly"]["windspeed_10m"][24:]
+    windspeed_80m_s = data3["hourly"]["windspeed_80m"][24:]
+    windspeed_120m_s = data3["hourly"]["windspeed_120m"][24:]
+    windspeed_180m_s = data3["hourly"]["windspeed_180m"][24:]
+    winddirection_10m_s = data3["hourly"]["winddirection_10m"][24:]
+    winddirection_80m_s = data3["hourly"]["winddirection_80m"][24:]
+    winddirection_120m_s = data3["hourly"]["winddirection_120m"][24:]
+    winddirection_180m_s = data3["hourly"]["winddirection_180m"][24:]
+    windgusts_10m_s = data3["hourly"]["windgusts_10m"][24:]
+    temperature_80m_s = data3["hourly"]["temperature_80m"][24:]
+    temperature_120m_s = data3["hourly"]["temperature_120m"][24:]
+    temperature_180m_s = data3["hourly"]["temperature_180m"][24:]
+    shortwave_radiation_s = data3["hourly"]["shortwave_radiation"][24:]
+    direct_radiation_s = data3["hourly"]["direct_radiation"][24:]
+    diffuse_radiation_s = data3["hourly"]["diffuse_radiation"][24:]
+    direct_normal_irradiance_s = data3["hourly"]["direct_normal_irradiance"][24:]
+    terrestrial_radiation_s = data3["hourly"]["terrestrial_radiation"][24:]
 
     for timestamp_str, temperature, humidity, \
         windspeed_10m, windspeed_80m, windspeed_120m, windspeed_180m, \
@@ -348,13 +382,13 @@ def store_icon_15_data_in_influxdb(data4, lat, lon, write_api): # icon minutely_
 
     coordinates = lat,lon
 
-    timestamps = data4["minutely_15"]["time"][96:192]
+    timestamps = data4["minutely_15"]["time"][96:]
 
-    shortwave_radiation_s = data4["minutely_15"]["shortwave_radiation"][96:192]
-    direct_radiation_s = data4["minutely_15"]["direct_radiation"][96:192]
-    diffuse_radiation_s = data4["minutely_15"]["diffuse_radiation"][96:192]
-    direct_normal_irradiance_s = data4["minutely_15"]["direct_normal_irradiance"][96:192]
-    terrestrial_radiation_s = data4["minutely_15"]["terrestrial_radiation"][96:192]
+    shortwave_radiation_s = data4["minutely_15"]["shortwave_radiation"][96:]
+    direct_radiation_s = data4["minutely_15"]["direct_radiation"][96:]
+    diffuse_radiation_s = data4["minutely_15"]["diffuse_radiation"][96:]
+    direct_normal_irradiance_s = data4["minutely_15"]["direct_normal_irradiance"][96:]
+    terrestrial_radiation_s = data4["minutely_15"]["terrestrial_radiation"][96:]
 
     for timestamp_str, shortwave_radiation, direct_radiation, diffuse_radiation, direct_normal_irradiance, terrestrial_radiation \
         in zip(timestamps, shortwave_radiation_s, direct_radiation_s, diffuse_radiation_s, direct_normal_irradiance_s, terrestrial_radiation_s):
@@ -482,7 +516,7 @@ def fetch_and_store_weather_data():
 
     # Loop through each city and fetch weather data
     for row in city_data:
-        city_id, active, name, lat, lon, tz, country, country_code, added, started, daily, hourly , icon, icon_15, gfs, meteofrance, comment = row
+        city_id, active, name, lat, lon, tz, country, country_code, added, started, daily, hourly , icon, icon_15, gfs, meteofrance, horizon, comment, last_hit = row
 
         # Check if localtime is 23:00
         if not is_it_23_local(tz):
@@ -494,32 +528,42 @@ def fetch_and_store_weather_data():
             log_to_file(f"Data collection skipped for {name} as it is not active")
             continue
 
+        if not should_fetch_data(horizon, last_hit):
+            log_to_file(f"Data collection skipped for {name} as horizon criteria is not met")
+            continue
+
         try:
 
             if daily == 1:
-                data = fetch_daily_data(lat, lon)
+                data = fetch_daily_data(lat, lon, horizon)
                 store_daily_data_in_influxdb(data, lat, lon, write_api)
                 log_to_file(f"Daily Data for {name} with {lat},{lon} Stored")
+                update_last_hit(city_id)
             if hourly == 1:
-                data2 = fetch_hourly_data(lat, lon)
+                data2 = fetch_hourly_data(lat, lon, horizon)
                 store_hourly_data_in_influxdb(data2, lat, lon, write_api)
                 log_to_file(f"Hourly Data for {name} with {lat},{lon} Stored")
+                update_last_hit(city_id)
             if icon == 1:
-                data3 = fetch_icon_data(lat, lon)
+                data3 = fetch_icon_data(lat, lon, horizon)
                 store_icon_data_in_influxdb(data3, lat, lon, write_api)
                 log_to_file(f"ICON Data for {name} with {lat},{lon} Stored")
+                update_last_hit(city_id)
             if icon_15 == 1:
-                data4 = fetch_icon_15_data(lat, lon)
+                data4 = fetch_icon_15_data(lat, lon, horizon)
                 store_icon_15_data_in_influxdb(data4, lat, lon, write_api)
                 log_to_file(f"ICON 15 Data for {name} with {lat},{lon} Stored")
+                update_last_hit(city_id)
             if gfs == 1:
-                data5 = fetch_gfs_data(lat, lon)
+                data5 = fetch_gfs_data(lat, lon, horizon)
                 store_gfs_data_in_influxdb(data5, lat, lon, write_api)
                 log_to_file(f"GFS Data for {name} with {lat},{lon} Stored")
+                update_last_hit(city_id)
             if meteofrance == 1:
-                data6 = fetch_meteofrance_data(lat, lon)
+                data6 = fetch_meteofrance_data(lat, lon, horizon)
                 store_meteofrance_data_in_influxdb(data6, lat, lon, write_api)
                 log_to_file(f"Meteofrance Data for {name} with {lat},{lon} Stored")
+                update_last_hit(city_id)
 
         except Exception as e:
             logging.error(f"Error fetching weather data for {name} from API: {str(e)}")
@@ -528,87 +572,6 @@ def fetch_and_store_weather_data():
     client.close()
 
 
-
-def store_query_urls(city_data):
-    try:
-        conn = pymysql.connect(
-            user=str(os.getenv('MYSQL_USER')),
-            password=str(os.getenv('MYSQL_PASSWORD')),
-            host=str(os.getenv('MYSQL_HOST')),
-            database=str(os.getenv('MYSQL_DB'))
-        )
-        
-        cur = conn.cursor()
-        
-        # loop through each city and store query URLs
-        for row in city_data:
-            city_id, _, _, lat, lon, _, _, _, _, _, daily, hourly, icon, icon_15, gfs, meteofrance, _ = row
-            
-            # check if an entry already exists
-            cur.execute("SELECT 1 FROM query_urls WHERE city_id = %s", (city_id,))
-            if cur.fetchone():
-                continue
-            
-            daily_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&daily=temperature_2m_max,temperature_2m_min,windspeed_10m_max,winddirection_10m_dominant,shortwave_radiation_sum&timezone=auto" if daily == 1 else None
-            hourly_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&hourly=temperature_2m,relativehumidity_2m,windspeed_10m,windspeed_80m,windspeed_120m,windspeed_180m,winddirection_10m,winddirection_80m,winddirection_120m,winddirection_180m,windgusts_10m,temperature_80m,temperature_120m,temperature_180m,shortwave_radiation,direct_radiation,diffuse_radiation&forecast_days=2&timezone=auto" if hourly == 1 else None
-            icon_url = f"https://api.open-meteo.com/v1/dwd-icon?latitude={lat}&longitude={lon}&hourly=temperature_2m,relativehumidity_2m,windspeed_10m,windspeed_80m,windspeed_120m,windspeed_180m,winddirection_10m,winddirection_80m,winddirection_120m,winddirection_180m,windgusts_10m,temperature_80m,temperature_120m,temperature_180m,shortwave_radiation,direct_radiation,diffuse_radiation,direct_normal_irradiance,terrestrial_radiation&timezone=auto" if icon == 1 else None
-            icon_15_url = f"https://api.open-meteo.com/v1/dwd-icon?latitude={lat}&longitude={lon}&minutely_15=shortwave_radiation,direct_radiation,diffuse_radiation,direct_normal_irradiance,terrestrial_radiation&timezone=auto" if icon_15 == 1 else None
-            gfs_url = f"https://api.open-meteo.com/v1/gfs?latitude={lat}&longitude={lon}&hourly=temperature_2m,relativehumidity_2m,windspeed_10m,windspeed_80m,winddirection_10m,winddirection_80m,windgusts_10m,shortwave_radiation,direct_radiation,diffuse_radiation,direct_normal_irradiance,terrestrial_radiation&forecast_days=2&timezone=auto" if gfs == 1 else None
-            meteofrance_url = f"https://api.open-meteo.com/v1/meteofrance?latitude={lat}&longitude={lon}&hourly=temperature_2m,relativehumidity_2m,windspeed_10m,winddirection_10m,windgusts_10m,shortwave_radiation,direct_radiation,diffuse_radiation,direct_normal_irradiance,terrestrial_radiation&forecast_days=2&timezone=auto" if meteofrance == 1 else None
-            
-            insert_query = """INSERT INTO query_urls(city_id, daily, hourly, icon, icon_15, gfs, meteofrance) VALUES (%s, %s, %s, %s, %s, %s, %s)"""
-            values = (city_id, daily_url, hourly_url, icon_url, icon_15_url, gfs_url, meteofrance_url)
-
-            log_to_file(f"Query URLs for city id {city_id} added")
-            
-            # execute the query
-            cur.execute(insert_query, values)
-            conn.commit()
-
-    except Exception as e:
-        print("Error while connecting to MySQL", e)
-    finally:
-        # close connetction
-        cur.close()
-        conn.close()
-
-
-def store_timezones(tz_data):
-    conn = pymysql.connect(
-        user=str(os.getenv('MYSQL_USER')),
-        password=str(os.getenv('MYSQL_PASSWORD')),
-        host=str(os.getenv('MYSQL_HOST')),
-        database=str(os.getenv('MYSQL_DB'))
-    )
-    cur = conn.cursor()
-
-    # loop through each city to fetch and store timezones
-    for row in tz_data:
-        city_id, _, _, lat, lon, _, _, _, _, _, _, _, _, _, _, _, _ = row
-
-        # check if tz already exists
-        cur.execute("SELECT tz FROM cities WHERE city_id = %s", (city_id,))
-        if cur.fetchone()[0]:  # If timezone already exists, skip to the next iteration
-            continue
-
-        timezone = get_timezone(lat, lon)
-
-        log_to_file(f"Timezone for city id {city_id} added")
-
-        # update the tz
-        cur.execute("UPDATE cities SET tz = %s WHERE city_id = %s", (timezone, city_id))
-        conn.commit()
-
-    cur.close()
-    conn.close()
-
-
-
-# Run the script
-city_data = retrieve_city_data()
-store_query_urls(city_data)
-tz_data = retrieve_city_data()
-store_timezones(tz_data)
 fetch_and_store_weather_data()
 
 # Calculate elapsed time
