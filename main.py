@@ -622,16 +622,18 @@ def add_city():
         lat_valid = validate_and_normalize_coord(lat)
         lon_valid = validate_and_normalize_coord(lon)
 
+        last_hit = datetime.today().date() - timedelta(days=10)
+
         with get_db().cursor() as cursor:
-            query = "INSERT INTO cities (name, lat, lon, country, country_code, added, started, daily, hourly , icon, icon_15, gfs, meteofrance, horizon, comment) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
-            cursor.execute(query, (city, lat_valid, lon_valid, country, country_code, current_date, next_day_date, daily, hourly , icon, icon_15, gfs, meteofrance, horizon, comment))
+            query = "INSERT INTO cities (name, lat, lon, country, country_code, added, started, daily, hourly , icon, icon_15, gfs, meteofrance, horizon, comment, last_hit) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+            cursor.execute(query, (city, lat_valid, lon_valid, country, country_code, current_date, next_day_date, daily, hourly , icon, icon_15, gfs, meteofrance, horizon, comment, last_hit))
         get_db().commit()
 
         city_data = retrieve_city_data()
         store_query_urls(city_data)
         tz_data = retrieve_city_data()
         store_timezones(tz_data)
-        add_last_hit(lat_valid, lon_valid)
+        #add_last_hit(lat_valid, lon_valid)
 
         flash_message(f'{city} has been added to the list. The closest coordinates are {lat_valid} & {lon_valid}')
     return redirect(('/cities'))
@@ -689,10 +691,11 @@ def add_city_coords():
                         country = "UNKNOWN"
                         country_code = country_code2
 
+        last_hit = datetime.today().date() - timedelta(days=10)
 
         with get_db().cursor() as cursor:
-            query = "INSERT INTO cities (name, lat, lon, country, country_code, added, started, daily, hourly , icon, icon_15, gfs, meteofrance, horizon, comment) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
-            cursor.execute(query, (city, lat_valid, lon_valid, country, country_code, current_date, next_day_date, daily, hourly , icon, icon_15, gfs, meteofrance, horizon, comment))
+            query = "INSERT INTO cities (name, lat, lon, country, country_code, added, started, daily, hourly , icon, icon_15, gfs, meteofrance, horizon, comment, last_hit) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+            cursor.execute(query, (city, lat_valid, lon_valid, country, country_code, current_date, next_day_date, daily, hourly , icon, icon_15, gfs, meteofrance, horizon, comment, last_hit))
         get_db().commit()
 
         city_data = retrieve_city_data()
