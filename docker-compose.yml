@@ -83,7 +83,7 @@ services:
       - ./dagster-data:/dagster_home
       - ./dagster/my-dagster-project/:/my-dagster-project
     ports:
-      - "3000:3000"
+      - "6000:6000"
     depends_on:
       - db
       - influxdb

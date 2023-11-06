@@ -23,6 +23,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 WORKDIR /my-dagster-project
 RUN pip install -e ".[dev]"
 
-EXPOSE 3000
+EXPOSE 6000
 
 CMD ["dagster", "dev", "-h", "0.0.0.0"]
