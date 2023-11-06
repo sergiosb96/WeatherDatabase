@@ -25,4 +25,4 @@ RUN pip install -e ".[dev]"
 
 EXPOSE 6000
 
-CMD ["dagster", "dev", "-h", "0.0.0.0"]
+CMD ["dagster", "dev", "-h", "0.0.0.0", "-p", "6000"]
