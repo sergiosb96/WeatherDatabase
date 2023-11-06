@@ -633,7 +633,6 @@ def add_city():
         store_query_urls(city_data)
         tz_data = retrieve_city_data()
         store_timezones(tz_data)
-        #add_last_hit(lat_valid, lon_valid)
 
         flash_message(f'{city} has been added to the list. The closest coordinates are {lat_valid} & {lon_valid}')
     return redirect(('/cities'))
