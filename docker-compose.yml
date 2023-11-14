@@ -82,13 +82,14 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - ./dagster-data:/dagster_home
       - ./dagster/my-dagster-project/:/my-dagster-project
+    expose:
+      - "7000"
     ports:
-      - "6000:6000"
+      - "7000:7000"
     depends_on:
       - db
       - influxdb
     environment:
-      DAGIT_PORT: 6000
       MYSQL_HOST: ${MYSQL_HOST}
       MYSQL_DB: ${MYSQL_DB}
       MYSQL_USER: ${MYSQL_USER}
