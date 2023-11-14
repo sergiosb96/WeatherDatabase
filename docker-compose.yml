@@ -45,7 +45,7 @@ services:
     volumes:
       - /etc/localtime:/etc/localtime:ro
     ports: 
-      - "8000:8000"
+      - "9000:9000"
     depends_on:
       - db
       - influxdb
