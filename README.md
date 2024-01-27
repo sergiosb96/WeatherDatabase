@@ -37,13 +37,13 @@ The user can access the data using our API or visualize them using the UI (chart
 
 ## Ports
 
-UI: 5000
-API: 9000
-Dagster: 7000
-InfluxDB: 8086
-MySQL: 3306
+- UI: 5000
+- API: 9000
+- Dagster: 7000
+- InfluxDB: 8086
+- MySQL: 3306
 
-![Demo](https://github.com/sergiosb96/WeatherDatabase/raw/video.mp4)
+![Demo](https://github.com/sergiosb96/WeatherDatabase/blob/main/video.mp4)
 
 
 ### This project is part of my Thesis for NTUA. 
